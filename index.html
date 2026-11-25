@@ -110,7 +110,7 @@ img { max-width: 100%; }
   const SIZES = {"pm-recent.csv": 2706617, "pm-older.csv": 11771627};
   // Fetch a text file, reporting progress (0-1) against its known size.
   const getText = async (f, onProgress) => {
-    const r = await fetch('data/' + f + '?v=202611251803');
+    const r = await fetch('data/' + f + '?v=202611251805');
     if (!r.ok) throw new Error(f + ' ' + r.status);
     if (!r.body || !onProgress) return r.text();
     const reader = r.body.getReader(), parts = [];
@@ -554,6 +554,14 @@ th[data-tip] { cursor: help; }
   background: color-mix(in srgb, var(--color-warn) 16%, var(--color-panel));
   background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-warn) 14%, transparent) 0 6px, transparent 6px 12px);
   border: 1px solid color-mix(in srgb, var(--color-warn) 45%, transparent); }
+
+/* ---- Position average on each percentile bar ---- */
+.dps-avgline { position: absolute; top: 4px; height: 20px; width: 2px; margin-left: -1px; background: var(--color-fg); opacity: .55; border-radius: 1px; z-index: 0; cursor: help; }
+.dps-bar.hl .dps-avgline { top: 2px; height: 24px; }
+.dps-val .dps-avgval { display: block; font-size: 10px; line-height: 1.1; color: var(--color-fg-muted); white-space: nowrap; }
+.dps-bar, .dps-scale { grid-template-columns: 8.5rem minmax(0, 1fr) 5.2rem; }
+@media (max-width: 600px) { .dps-bar, .dps-scale { grid-template-columns: 6rem minmax(0, 1fr) 4.4rem; } }
+.dps-scale > span:last-child::after { content: "you / avg"; font-size: 10px; }
 
 /* ---- 8-bit hero sprites: transparent, outlined, no frame; they hop when you point at them ---- */
 .dps-pix, .dps-table .dps-pix, .dps-t5list li:first-child .dps-pix, .dps-banpix { box-shadow: none; background-color: transparent;
@@ -1248,7 +1256,7 @@ dash.calc('stats', {
 dash.calc('pctl', {
   inputs: ['stats'],
   title: 'Percentile vs same position',
-  description: 'Each stat ranked 1-100 against every listed row with the same position in the selected dates and opponents, among players who have that stat. Deaths, time dead, item timing and xWin spread are reversed so lower ranks higher.',
+  description: 'Each stat ranked 1-100 against every listed row with the same position in the selected dates and opponents, among players who have that stat; avg_<stat> is the position average and avgp_<stat> where it sits on the 1-100 scale. Deaths, time dead, item timing and xWin spread are reversed so lower ranks higher.',
   fn: (stats) => {
     const keys = ['xwin', 'xlane', 'waa', 'winrate', 'kda', 'kills', 'deaths', 'assists', 'gpm', 'xpm', 'lh_min', 'denies', 'dmg_min', 'tower_dmg', 'healing', 'stuns', 'teamfight', 'wards', 'stacks', 'hero_pool',
       'lane_win', 'item_pace', 'dead_pct', 'dewards', 'ward_surv', 'power_runes', 'objectives', 'xwin_sd', 'lead_conv', 'comeback', 'late_xwin', 'scaling'];
@@ -1271,6 +1279,14 @@ dash.calc('pctl', {
           if (REV.has(s)) pc = 100 - pc;
           byKey.get(p.key)[s] = Math.max(1, Math.min(100, Math.round(pc)));
         });
+        // Position average for this stat, and where it would sit on the 1-100 scale.
+        if (n) {
+          const avg = vals.reduce((a, v) => a + v, 0) / n;
+          const below = vals.filter((x) => x < avg).length;
+          let ap = n > 1 ? below / (n - 1) * 100 : 50;
+          if (REV.has(s)) ap = 100 - ap;
+          g.forEach((p) => { const o = byKey.get(p.key); o['avg_' + s] = avg; o['avgp_' + s] = Math.max(0, Math.min(100, ap)); });
+        }
       });
     });
     return out;
@@ -1867,7 +1883,7 @@ dash.calc('teamagg', {
     const p = D.shown();
     if (!p || C.status !== 'ok' || !C.data) { el.textContent = '—'; return; }
     const c = C.data.find((r) => r.key === p.key);
-    el.textContent = 'Pos ' + p.pos + ' ' + p.role + ' key stats, ranked only against the ' + (c ? c.group_size : '—') + ' Pos ' + p.pos + ' players in these dates and opponents. The top three are model-based. Faded, striped bars rest on a small sample. Hover a stat for its definition.';
+    el.textContent = 'Pos ' + p.pos + ' ' + p.role + ' key stats, ranked only against the ' + (c ? c.group_size : '—') + ' Pos ' + p.pos + ' players in these dates and opponents. The top three are model-based. The thin dark line on each bar marks the position average (its value is under the player’s). Faded, striped bars rest on a small sample. Hover a stat for its definition.';
   });
 
   dash.draw('bars', (el) => {
@@ -1891,6 +1907,12 @@ dash.calc('teamagg', {
       const tr = mk('div', 'dps-track');
       const fill = mk('i'); fill.style.width = v + '%'; fill.style.background = col;
       const dot = mark(mk('span', 'dps-dot', v), 'pctl', s, p.key); dot.style.left = v + '%'; dot.style.background = col;
+      const avg = c['avg_' + s], avgp = c['avgp_' + s];
+      if (avg != null) {
+        const line = mk('span', 'dps-avgline'); line.style.left = avgp + '%';
+        line.title = 'Pos ' + p.pos + ' average: ' + D.STAT[s].f(avg);
+        tr.append(line);
+      }
       dot.setAttribute('aria-label', D.STAT[s].label + ': ' + D.ord(v) + ' percentile');
       tr.append(fill);
       if (cq && cq[s] != null) {
@@ -1899,7 +1921,9 @@ dash.calc('teamagg', {
         tr.append(ring);
       }
       tr.append(dot);
-      row.append(tip(mk('div', 'dps-bar-label', D.STAT[s].label), s), tr, mark(mk('div', 'dps-val', p[s] == null ? '—' : D.STAT[s].f(p[s])), 'stats', s, p.key));
+      const val = mark(mk('div', 'dps-val', p[s] == null ? '—' : D.STAT[s].f(p[s])), 'stats', s, p.key);
+      if (avg != null) val.append(mk('small', 'dps-avgval', 'avg ' + D.STAT[s].f(avg)));
+      row.append(tip(mk('div', 'dps-bar-label', D.STAT[s].label), s), tr, val);
       return row;
     });
     bars.splice(3, 0, mk('div', 'dps-split'));
