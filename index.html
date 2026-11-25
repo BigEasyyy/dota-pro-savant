@@ -110,7 +110,7 @@ img { max-width: 100%; }
   const SIZES = {"pm-recent.csv": 2706617, "pm-older.csv": 11771627};
   // Fetch a text file, reporting progress (0-1) against its known size.
   const getText = async (f, onProgress) => {
-    const r = await fetch('data/' + f + '?v=202611251735');
+    const r = await fetch('data/' + f + '?v=202611251745');
     if (!r.ok) throw new Error(f + ' ' + r.status);
     if (!r.body || !onProgress) return r.text();
     const reader = r.body.getReader(), parts = [];
@@ -966,7 +966,7 @@ window.DPS.KEYS = {
   1: ['xwin', 'xlane', 'waa', 'winrate', 'lead_conv', 'late_xwin', 'lane_win', 'item_pace', 'kda', 'gpm', 'xpm', 'lh_min', 'dmg_min', 'tower_dmg', 'objectives', 'dead_pct', 'xwin_sd', 'hero_pool'],
   2: ['xwin', 'xlane', 'waa', 'winrate', 'lead_conv', 'late_xwin', 'lane_win', 'item_pace', 'power_runes', 'kda', 'xpm', 'gpm', 'kills', 'dmg_min', 'dead_pct', 'xwin_sd', 'hero_pool'],
   3: ['xwin', 'xlane', 'waa', 'winrate', 'lead_conv', 'late_xwin', 'lane_win', 'item_pace', 'kda', 'stuns', 'teamfight', 'objectives', 'dmg_min', 'dead_pct', 'xwin_sd', 'hero_pool'],
-  4: ['xwin', 'xlane', 'waa', 'winrate', 'lead_conv', 'late_xwin', 'lane_win', 'dewards', 'ward_surv', 'kda', 'assists', 'teamfight', 'stuns', 'stacks', 'dead_pct', 'xwin_sd', 'hero_pool'],
+  4: ['xwin', 'xlane', 'waa', 'winrate', 'lead_conv', 'late_xwin', 'lane_win', 'wards', 'dewards', 'ward_surv', 'kda', 'assists', 'teamfight', 'stuns', 'stacks', 'dead_pct', 'xwin_sd', 'hero_pool'],
   5: ['xwin', 'xlane', 'waa', 'winrate', 'lead_conv', 'late_xwin', 'lane_win', 'dewards', 'ward_surv', 'wards', 'stacks', 'healing', 'assists', 'teamfight', 'dead_pct', 'xwin_sd', 'hero_pool']
 };
 window.DPS.SAMPLE = { lane_win: ['lane_games', 30], item_pace: ['item_n', 20], ward_surv: ['wards_placed', 40], lead_conv: ['lead_n', 15],
