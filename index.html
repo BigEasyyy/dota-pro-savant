@@ -110,7 +110,7 @@ img { max-width: 100%; }
   const SIZES = {"pm-recent.csv": 2706617, "pm-older.csv": 11771627};
   // Fetch a text file, reporting progress (0-1) against its known size.
   const getText = async (f, onProgress) => {
-    const r = await fetch('data/' + f + '?v=202611251745');
+    const r = await fetch('data/' + f + '?v=202611251803');
     if (!r.ok) throw new Error(f + ' ' + r.status);
     if (!r.body || !onProgress) return r.text();
     const reader = r.body.getReader(), parts = [];
@@ -549,6 +549,12 @@ th[data-tip] { cursor: help; }
 .dps-evrow { grid-template-columns: 10rem minmax(0, 1fr) 10.5rem; }
 @media (max-width: 600px) { .dps-evrow { grid-template-columns: 6.5rem minmax(0, 1fr) 5.2rem; } .dps-evmid { display: none; } }
 
+/* ---- Thin-selection banner ---- */
+.dps-thin { padding: 10px 14px; border-radius: 3px; font-size: var(--cds-font-size-caption); color: var(--color-fg);
+  background: color-mix(in srgb, var(--color-warn) 16%, var(--color-panel));
+  background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-warn) 14%, transparent) 0 6px, transparent 6px 12px);
+  border: 1px solid color-mix(in srgb, var(--color-warn) 45%, transparent); }
+
 /* ---- 8-bit hero sprites: transparent, outlined, no frame; they hop when you point at them ---- */
 .dps-pix, .dps-table .dps-pix, .dps-t5list li:first-child .dps-pix, .dps-banpix { box-shadow: none; background-color: transparent;
   filter: drop-shadow(2px 2px 0 color-mix(in srgb, var(--color-fg) 22%, transparent)); }
@@ -657,6 +663,8 @@ th[data-tip] { cursor: help; }
     </div>
   </section>
   </div>
+
+  <div class="dps-thin" data-draw="thin-note" data-source="stats window" role="status" hidden></div>
 
   <div class="dps-view" id="home">
   <section class="dps-card" id="top-xwin">
@@ -1111,7 +1119,7 @@ window.DPS.setRange = (from, to) => dash.setParams({ from: from || '', to: to ||
 dash.calc('stats', {
   inputs: ['pm', 'players', 'scope'],
   title: 'Player stats for the selected dates and opponents',
-  description: 'One row per pro per position they reached the minimum games at, inside the From/To dates and against the chosen opponent tiers. Main = their most-played qualifying position. WAA is measured against the average xWin of all rows at the same position (waa_base); xwin_se is the standard error of xWin %. xwin and xlane are pulled toward the position average by k games of it (shrink_xwin / shrink_xlane in scope): (games x raw + k x average) / (games + k); the raw values are kept as xwin_raw and xlane_raw. WAA uses the raw values.',
+  description: 'One row per pro per position they reached the minimum games at (lowered to 3 when fewer than 25 players reach the chosen minimum: relaxed), inside the From/To dates and against the chosen opponent tiers. Main = their most-played qualifying position. WAA is measured against the average xWin of all rows at the same position (waa_base); xwin_se is the standard error of xWin %. xwin and xlane are pulled toward the position average by k games of it (shrink_xwin / shrink_xlane in scope): (games x raw + k x average) / (games + k); the raw values are kept as xwin_raw and xlane_raw. WAA uses the raw values.',
   fn: (pm, players, scope) => {
     const prm = dash.params();
     const from = prm.from || '0000-00-00', to = prm.to || '9999-12-31', min = Number(prm.min) || 15, opp = Number(prm.opp) || 1;
@@ -1134,9 +1142,15 @@ dash.calc('stats', {
     const avgN = (rs, k, need) => { let s = 0, n = 0; for (const r of rs) { if (num(r[k])) { s += +r[k]; n++; } } return n >= (need || 1) ? s / n : null; };
     const rdN = (v, d) => (v == null ? null : rd(v, d));
     const out = [];
+    // Thin selections (a brand-new patch, one short event): if fewer than 25 players reach the minimum,
+    // drop it to 3 games so everyone shows, all as small samples.
+    let reach = 0;
+    for (const [, a] of by) if (Object.values(a.pos).some((rs) => rs.length >= min)) reach++;
+    const relaxed = reach < 25 && min > 3;
+    const minUse = relaxed ? 3 : min;
     for (const [id, a] of by) {
       const p = info.get(String(id)) || {};
-      const qual = Object.keys(a.pos).filter((k) => a.pos[k].length >= min).sort((x, y) => a.pos[y].length - a.pos[x].length || x - y);
+      const qual = Object.keys(a.pos).filter((k) => a.pos[k].length >= minUse).sort((x, y) => a.pos[y].length - a.pos[x].length || x - y);
       qual.forEach((pk, qi) => {
         const rs = a.pos[pk], pos = +pk;
         const W = rs.reduce((s, r) => s + (+r.win), 0);
@@ -1225,6 +1239,7 @@ dash.calc('stats', {
       o.shrink_games = k1;
       delete o._xs; delete o._xn; delete o._ls; delete o._ln;
     });
+    out.forEach((o) => { o.relaxed = relaxed; o.min_used = minUse; o.min_set = min; o.reach = reach; });
     out.sort((a, b) => b.games - a.games || a.name.localeCompare(b.name));
     return out;
   }
@@ -1730,6 +1745,16 @@ dash.calc('teamagg', {
     }));
   });
 
+  dash.draw('thin-note', (el) => {
+    const S = dash.data('stats'), W = dash.data('window');
+    const p = S.status === 'ok' && S.data && S.data[0];
+    if (!p || !p.relaxed) { el.hidden = true; el.replaceChildren(); return; }
+    const games = W.status === 'ok' && W.data[0] ? W.data[0].matches : null;
+    el.hidden = false;
+    el.replaceChildren(mk('b', null, 'Small sample: '), (games != null ? 'only ' + d3.format(',')(games) + ' games match these filters, so ' : 'few games match these filters, so ')
+      + 'just ' + p.reach + ' player' + (p.reach === 1 ? '' : 's') + ' reach' + (p.reach === 1 ? 'es' : '') + ' ' + p.min_set + ' games. Everyone with 3+ games is shown instead, with striped bars: treat every number as rough.');
+  });
+
   dash.draw('names', (el) => {
     const S = dash.data('stats'), T = dash.data('teamagg'), A = dash.data('heroart');
     const seen = new Set();
@@ -2162,7 +2187,8 @@ dash.calc('teamagg', {
     const pos = Number(el.getAttribute('data-pos'));
     const cur = D.shown();
     // Established players only: this is their main position and they have a full sample there.
-    const rows = S.data.filter((p) => p.pos === pos && p.main && p.games >= D.SMALL).sort((a, b) => b.xwin - a.xwin || b.games - a.games).slice(0, 5);
+    // Established players only, except in a thin selection, where the best main-position players show as small samples.
+    const rows = S.data.filter((p) => p.pos === pos && p.main && (p.games >= D.SMALL || p.relaxed)).sort((a, b) => b.xwin - a.xwin || b.games - a.games).slice(0, 5);
     if (!rows.length) { el.replaceChildren(mk('li', 'dps-t5rank', 'No main-position player has ' + D.SMALL + '+ games here. Widen the dates or include more opponents.')); return; }
     el.replaceChildren(...rows.map((p, i) => {
       const li = mk('li');
@@ -2171,6 +2197,7 @@ dash.calc('teamagg', {
       btn.setAttribute('aria-label', 'Open ' + p.name + ', xWin ' + p.xwin + '%');
       const nm = mk('span', 'dps-t5name', p.name);
       const sub = mk('small', null, (p.team || 'No team') + ' · ' + p.games + ' g');
+      if (p.relaxed) sub.append(mk('span', 'dps-ss', ' · small sample'));
       nm.appendChild(sub);
       const ic = pix(p.top_hero);
       if (!ic.classList.contains('none')) ic.title = 'Most played: ' + D.heroName(p.top_hero) + ' (' + p.top_hero_games + ' games)';
