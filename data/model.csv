@@ -1,52 +1,52 @@
 pos,feature,label,group,weight
-1,e_gold,Gold lead at 10:00,10-minute,0.68
+1,e_gold,Gold lead at 10:00,10-minute,0.67
 1,e_xp,XP lead at 10:00,10-minute,0.05
 1,e_lh,Last-hit lead at 10:00,10-minute,0.0
-1,e_dn,Denies at 10:00,10-minute,0.08
+1,e_dn,Denies at 10:00,10-minute,0.07
 1,s_gold,Share of team gold,Whole game,0.0
 1,s_dmg,Share of team hero damage,Whole game,0.02
-1,s_tower,Share of team tower damage,Whole game,0.6
+1,s_tower,Share of team tower damage,Whole game,0.66
 1,s_heal,Share of team healing,Whole game,0.0
-1,kp,Kill participation,Whole game,0.21
+1,kp,Kill participation,Whole game,0.16
 1,s_death,Share of team deaths,Whole game,-0.0
-1,stun_m,Stuns per minute,Whole game,0.18
-1,ward_m,Wards per 10 min,Whole game,0.07
-1,stack_m,Stacks per 10 min,Whole game,0.07
+1,stun_m,Stuns per minute,Whole game,0.2
+1,ward_m,Wards per 10 min,Whole game,0.06
+1,stack_m,Stacks per 10 min,Whole game,0.11
 1,s_dew,Share of team's enemy wards killed,Whole game,0.0
 1,ward_surv,Observer ward survival,Whole game,0.01
 1,r_item,"Item timing vs hero, beyond teammates",Whole game,0.0
-1,s_dead,Share of team's time dead,Whole game,-0.37
-2,e_gold,Gold lead at 10:00,10-minute,0.5
-2,e_xp,XP lead at 10:00,10-minute,0.06
+1,s_dead,Share of team's time dead,Whole game,-0.35
+2,e_gold,Gold lead at 10:00,10-minute,0.49
+2,e_xp,XP lead at 10:00,10-minute,0.05
 2,e_lh,Last-hit lead at 10:00,10-minute,0.0
 2,e_dn,Denies at 10:00,10-minute,0.0
 2,s_gold,Share of team gold,Whole game,0.0
 2,s_dmg,Share of team hero damage,Whole game,0.0
 2,s_tower,Share of team tower damage,Whole game,0.0
 2,s_heal,Share of team healing,Whole game,0.0
-2,kp,Kill participation,Whole game,0.21
+2,kp,Kill participation,Whole game,0.19
 2,s_death,Share of team deaths,Whole game,-0.14
-2,stun_m,Stuns per minute,Whole game,0.17
+2,stun_m,Stuns per minute,Whole game,0.26
 2,ward_m,Wards per 10 min,Whole game,0.0
 2,stack_m,Stacks per 10 min,Whole game,0.09
-2,s_dew,Share of team's enemy wards killed,Whole game,0.12
+2,s_dew,Share of team's enemy wards killed,Whole game,0.1
 2,ward_surv,Observer ward survival,Whole game,0.09
 2,r_item,"Item timing vs hero, beyond teammates",Whole game,0.0
 2,s_dead,Share of team's time dead,Whole game,-0.0
-3,e_gold,Gold lead at 10:00,10-minute,0.69
+3,e_gold,Gold lead at 10:00,10-minute,0.68
 3,e_xp,XP lead at 10:00,10-minute,0.06
 3,e_lh,Last-hit lead at 10:00,10-minute,0.0
-3,e_dn,Denies at 10:00,10-minute,0.12
+3,e_dn,Denies at 10:00,10-minute,0.11
 3,s_gold,Share of team gold,Whole game,0.0
 3,s_dmg,Share of team hero damage,Whole game,0.0
 3,s_tower,Share of team tower damage,Whole game,0.0
-3,s_heal,Share of team healing,Whole game,0.03
-3,kp,Kill participation,Whole game,0.31
+3,s_heal,Share of team healing,Whole game,0.04
+3,kp,Kill participation,Whole game,0.29
 3,s_death,Share of team deaths,Whole game,-0.0
-3,stun_m,Stuns per minute,Whole game,0.06
+3,stun_m,Stuns per minute,Whole game,0.16
 3,ward_m,Wards per 10 min,Whole game,0.0
 3,stack_m,Stacks per 10 min,Whole game,0.14
-3,s_dew,Share of team's enemy wards killed,Whole game,0.1
+3,s_dew,Share of team's enemy wards killed,Whole game,0.09
 3,ward_surv,Observer ward survival,Whole game,0.05
 3,r_item,"Item timing vs hero, beyond teammates",Whole game,0.0
 3,s_dead,Share of team's time dead,Whole game,-0.05
@@ -57,30 +57,30 @@ pos,feature,label,group,weight
 4,s_gold,Share of team gold,Whole game,0.0
 4,s_dmg,Share of team hero damage,Whole game,0.0
 4,s_tower,Share of team tower damage,Whole game,0.0
-4,s_heal,Share of team healing,Whole game,0.1
+4,s_heal,Share of team healing,Whole game,0.09
 4,kp,Kill participation,Whole game,0.0
 4,s_death,Share of team deaths,Whole game,-0.0
-4,stun_m,Stuns per minute,Whole game,0.12
-4,ward_m,Wards per 10 min,Whole game,0.08
-4,stack_m,Stacks per 10 min,Whole game,0.1
+4,stun_m,Stuns per minute,Whole game,0.16
+4,ward_m,Wards per 10 min,Whole game,0.06
+4,stack_m,Stacks per 10 min,Whole game,0.11
 4,s_dew,Share of team's enemy wards killed,Whole game,0.0
 4,ward_surv,Observer ward survival,Whole game,0.25
-4,r_item,"Item timing vs hero, beyond teammates",Whole game,0.03
+4,r_item,"Item timing vs hero, beyond teammates",Whole game,0.02
 4,s_dead,Share of team's time dead,Whole game,-0.0
-5,e_gold,Gold lead at 10:00,10-minute,0.28
-5,e_xp,XP lead at 10:00,10-minute,0.34
+5,e_gold,Gold lead at 10:00,10-minute,0.27
+5,e_xp,XP lead at 10:00,10-minute,0.33
 5,e_lh,Last-hit lead at 10:00,10-minute,0.0
 5,e_dn,Denies at 10:00,10-minute,0.07
-5,s_gold,Share of team gold,Whole game,0.02
+5,s_gold,Share of team gold,Whole game,0.03
 5,s_dmg,Share of team hero damage,Whole game,0.0
 5,s_tower,Share of team tower damage,Whole game,0.0
-5,s_heal,Share of team healing,Whole game,0.09
+5,s_heal,Share of team healing,Whole game,0.07
 5,kp,Kill participation,Whole game,0.0
 5,s_death,Share of team deaths,Whole game,-0.0
-5,stun_m,Stuns per minute,Whole game,0.1
-5,ward_m,Wards per 10 min,Whole game,0.11
-5,stack_m,Stacks per 10 min,Whole game,0.1
+5,stun_m,Stuns per minute,Whole game,0.07
+5,ward_m,Wards per 10 min,Whole game,0.1
+5,stack_m,Stacks per 10 min,Whole game,0.11
 5,s_dew,Share of team's enemy wards killed,Whole game,0.0
-5,ward_surv,Observer ward survival,Whole game,0.42
+5,ward_surv,Observer ward survival,Whole game,0.41
 5,r_item,"Item timing vs hero, beyond teammates",Whole game,0.09
 5,s_dead,Share of team's time dead,Whole game,-0.0
