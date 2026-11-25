@@ -110,7 +110,7 @@ img { max-width: 100%; }
   const SIZES = {"pm-recent.csv": 2489158, "pm-older.csv": 10822438};
   // Fetch a text file, reporting progress (0-1) against its known size.
   const getText = async (f, onProgress) => {
-    const r = await fetch('data/' + f + '?v=202611251643');
+    const r = await fetch('data/' + f + '?v=202611251708');
     if (!r.ok) throw new Error(f + ' ' + r.status);
     if (!r.body || !onProgress) return r.text();
     const reader = r.body.getReader(), parts = [];
@@ -512,6 +512,17 @@ th[data-tip] { cursor: help; }
   background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, .45) 0 2px, transparent 2px 5px) !important; }
 .dps-bar.small .dps-bar-label, .dps-bar.small .dps-val { opacity: .65; }
 
+/* ---- Filters: each group's label on its own line above its buttons ---- */
+.dps-filterline { display: grid; gap: 6px; }
+.dps-filterline > .dps-lab { min-width: 0; }
+.dps-filter { gap: 14px; }
+
+/* ---- Profile pages: profile first; filters open from the bar (with a Done button); no Movers ---- */
+#dates.dps-collapsed { display: none; }
+.dps-subpage .dps-filterhead { display: flex; align-items: center; justify-content: space-between; }
+.dps-subpage #movers { display: none; }
+.dps-subpage .dps-toprow { grid-template-columns: minmax(0, 1fr); }
+
 /* ---- 8-bit hero sprites: transparent, outlined, no frame; they hop when you point at them ---- */
 .dps-pix, .dps-table .dps-pix, .dps-t5list li:first-child .dps-pix, .dps-banpix { box-shadow: none; background-color: transparent;
   filter: drop-shadow(2px 2px 0 color-mix(in srgb, var(--color-fg) 22%, transparent)); }
@@ -536,6 +547,12 @@ th[data-tip] { cursor: help; }
 /* Keep dots at 0 and 100 inside their track so they never cover the label or value */
 .dps-track { margin: 0 15px; }
 .dps-bar.hl .dps-track { margin: 0 18px; }
+
+/* KPI values (like a 55-24 record) stay on one line */
+.dps-kpi b { white-space: nowrap; }
+
+/* Numbers inside a KPI value (like the two halves of a record) are not labels */
+.dps-kpi b span { display: inline; font: inherit; color: inherit; text-transform: none; letter-spacing: inherit; }
 </style>
 
 <div class="dps">
@@ -546,7 +563,7 @@ th[data-tip] { cursor: help; }
     </div>
     <div class="dps-search">
       <label class="dps-lab" for="dps-q">Search player, team or hero</label>
-      <input class="dps-in" id="dps-q" type="search" list="dps-names" placeholder="e.g. Yatoro, Team Spirit, Invoker" autocomplete="off">
+      <input class="dps-in" id="dps-q" type="search" list="dps-names" placeholder="e.g. Speeed, Team Spirit, Invoker" autocomplete="off">
       <datalist id="dps-names" data-draw="names" data-source="stats teamagg heroart"></datalist>
       <div class="dps-msg" data-draw="search-msg"></div>
     </div>
@@ -977,6 +994,9 @@ window.DPS.show = (view, link) => {
   const D = window.DPS;
   Object.entries(D.VIEWS).forEach(([k, id]) => document.querySelectorAll('#' + id).forEach((e) => { e.hidden = k !== view; }));
   D.view = view;
+  // Profile pages (player, hero, team, event) start right under the header: no Movers, filters folded into the bar.
+  document.querySelectorAll('.dps').forEach((e) => e.classList.toggle('dps-subpage', view !== 'home'));
+  if (D.syncFilters) D.syncFilters();
   D.link = link || (view === 'home' ? 'home' : D.VIEWS[view]);
   dash.setLink(D.link);
   const top = document.getElementById('top');
@@ -1462,13 +1482,16 @@ dash.calc('teamagg', {
     document.querySelectorAll('#dates').forEach((d) => d.classList.toggle('dps-collapsed', !open));
     document.querySelectorAll('#dps-filtersum').forEach((b) => b.setAttribute('aria-expanded', String(open)));
   };
-  setFilters(!phone.matches);
-  phone.addEventListener('change', () => setFilters(!phone.matches));
+  // Open on Home at desktop width; folded on phones and on every profile page.
+  D.syncFilters = () => setFilters(!phone.matches && (D.view || 'home') === 'home');
+  D.syncFilters();
+  phone.addEventListener('change', D.syncFilters);
   document.querySelectorAll('#dps-filtersum').forEach((b) => b.addEventListener('click', () => {
     const d = document.getElementById('dates');
     if (!d) return;
-    if (phone.matches && d.classList.contains('dps-collapsed')) setFilters(true);
-    else if (phone.matches) { setFilters(false); return; }
+    const folds = phone.matches || (D.view || 'home') !== 'home';
+    if (folds && d.classList.contains('dps-collapsed')) setFilters(true);
+    else if (folds) { setFilters(false); return; }
     d.scrollIntoView({ behavior: smooth(), block: 'start' });
   }));
   document.querySelectorAll('#dps-filterdone').forEach((b) => b.addEventListener('click', () => setFilters(false)));
