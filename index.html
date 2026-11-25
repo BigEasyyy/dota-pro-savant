@@ -110,7 +110,7 @@ img { max-width: 100%; }
   const SIZES = {"pm-recent.csv": 2706617, "pm-older.csv": 11771627};
   // Fetch a text file, reporting progress (0-1) against its known size.
   const getText = async (f, onProgress) => {
-    const r = await fetch('data/' + f + '?v=202611251820');
+    const r = await fetch('data/' + f + '?v=202611251827');
     if (!r.ok) throw new Error(f + ' ' + r.status);
     if (!r.body || !onProgress) return r.text();
     const reader = r.body.getReader(), parts = [];
@@ -578,6 +578,87 @@ th[data-tip] { cursor: help; }
   background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .7) 0 3px, transparent 3px 7px), #cf2f33; }
 .dps-aboutfoot p { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
 
+/* ---- About page v2 ---- */
+.dps-about { gap: 18px; }
+.dps-abouthero { position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: center;
+  padding: 30px 30px 26px; border-radius: 3px; background-color: var(--dps-ink); color: var(--dps-ink-fg);
+  background-image: var(--dps-grain), repeating-linear-gradient(-45deg, rgba(255,255,255,.035) 0 1px, transparent 1px 7px);
+  border-bottom: 4px solid var(--dps-red); }
+.dps-abouthero .dps-lab { color: var(--dps-red); }
+.dps-abouthero h2 { margin: 8px 0 12px; font: 700 clamp(1.9rem, 1.2rem + 2.6vw, 3rem)/1 var(--dps-display); text-transform: uppercase; letter-spacing: .01em; text-wrap: balance; }
+.dps-abouthero h2 em { font-style: normal; color: var(--dps-red); }
+.dps-abouthero p { color: var(--dps-ink-muted); max-width: 56ch; margin: 0; }
+.dps-abouthero .dps-link { color: var(--dps-ink-fg); text-decoration-color: rgba(255,255,255,.4); }
+.dps-aboutparade { display: grid; grid-template-columns: repeat(4, 48px); gap: 14px 18px; justify-content: center; }
+.dps-aboutparade .dps-pix { width: 48px; height: 48px; filter: drop-shadow(3px 3px 0 rgba(0,0,0,.45)); }
+@media (prefers-reduced-motion: no-preference) {
+  .dps-aboutparade .dps-pix { animation: dps-hop 1.1s steps(3) infinite alternate; }
+  .dps-aboutparade .dps-pix:nth-child(2n) { animation-delay: .35s; } .dps-aboutparade .dps-pix:nth-child(3n) { animation-delay: .7s; }
+}
+@media (max-width: 760px) { .dps-abouthero { grid-template-columns: minmax(0, 1fr); padding: 22px 18px; } .dps-aboutparade { grid-template-columns: repeat(8, 32px); gap: 8px; justify-content: start; } .dps-aboutparade .dps-pix { width: 32px; height: 32px; } }
+
+.dps-aboutrow { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 26px; align-items: center; padding: 22px 24px; }
+.dps-aboutrow.flip .dps-abouttext { order: 2; }
+@media (max-width: 860px) { .dps-aboutrow { grid-template-columns: minmax(0, 1fr); gap: 16px; } .dps-aboutrow.flip .dps-abouttext { order: 0; } }
+.dps-abouttext p { margin: 0 0 10px; line-height: 1.55; max-width: 62ch; }
+.dps-abouttext .dps-h2 + p, .dps-abouttext .dps-h2 + ul { margin-top: 0; }
+.dps-abouttext .dps-h2:not(:first-child) { margin-top: 18px; }
+.dps-aboutfig { margin: 0; padding: 16px; border-radius: 3px; background: color-mix(in srgb, var(--color-fg) 3.5%, transparent);
+  background-image: linear-gradient(var(--dps-gridline) 1px, transparent 1px), linear-gradient(90deg, var(--dps-gridline) 1px, transparent 1px); background-size: 18px 18px;
+  border: 1px solid var(--color-border-line); display: grid; gap: 10px; min-width: 0; }
+.dps-aboutfig figcaption { font-size: 11.5px; color: var(--color-fg-muted); }
+
+.dps-demo .dps-bar { grid-template-columns: 6.8rem minmax(0, 1fr) 4.6rem; }
+
+.dps-flowin { display: flex; flex-wrap: wrap; gap: 6px; }
+.dps-flowin span { padding: 5px 9px; border-radius: 2px; background: var(--color-panel); border: 1px solid var(--color-border-line); font-size: 12px; }
+.dps-flowin span.adj { border-style: dashed; color: var(--color-fg-muted); }
+.dps-flowarrow { font: 700 22px var(--dps-mono); color: var(--dps-red); text-align: center; line-height: 1; }
+.dps-flowout { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 3px; background-color: var(--dps-ink); color: var(--dps-ink-fg);
+  background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.04) 0 1px, transparent 1px 6px); }
+.dps-flowout b { font: 700 2.6rem/1 var(--dps-display); color: #ff6b6f; }
+.dps-flowout span { font-size: 12px; color: var(--dps-ink-muted); }
+
+.dps-waagames { display: flex; flex-wrap: wrap; gap: 6px; }
+.dps-waagames span { font: 600 12px var(--dps-mono); padding: 5px 8px; border-radius: 2px; }
+.dps-waagames .up { background: color-mix(in srgb, var(--dps-red) 16%, transparent); color: var(--color-fg); box-shadow: inset 0 -2px 0 var(--dps-red); }
+.dps-waagames .down { background: color-mix(in srgb, var(--dps-blue) 16%, transparent); color: var(--color-fg); box-shadow: inset 0 -2px 0 var(--dps-blue); }
+.dps-waagames .more { color: var(--color-fg-muted); font-weight: 400; }
+.dps-waatotal { display: flex; align-items: baseline; gap: 10px; border-top: 2px solid var(--color-fg); padding-top: 8px; }
+.dps-waatotal span { font: 600 14px var(--dps-mono); color: var(--color-fg-muted); }
+.dps-waatotal b { font: 700 2.4rem/1 var(--dps-display); color: var(--dps-red); }
+
+.dps-callouts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 520px) { .dps-callouts { grid-template-columns: minmax(0, 1fr); } }
+.dps-callout { display: grid; gap: 4px; padding: 12px; border-radius: 3px; background: var(--color-panel); border: 1px solid var(--color-border-line); }
+.dps-callout b { font: 700 2.2rem/1 var(--dps-display); }
+.dps-callout.up b { color: var(--color-ok); } .dps-callout.down b { color: var(--color-bad); } .dps-callout.mover b { font-size: 1.5rem; color: var(--color-fg); }
+.dps-callout span { font-weight: 600; font-size: 13px; }
+.dps-callout small { display: block; font-weight: 400; font-size: 11px; color: var(--color-fg-muted); }
+
+.dps-pacebar { display: grid; grid-template-columns: 1fr 1fr 1fr; height: 22px; border-radius: 2px; overflow: hidden; font: 500 10.5px var(--dps-mono); }
+.dps-pacebar span { display: flex; align-items: center; justify-content: center; color: #fff; }
+.dps-pacebar .short { background: #4a6fb3; } .dps-pacebar .mid { background: #9a9ea8; } .dps-pacebar .long { background: #c9373b; }
+.dps-pacerow { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 2px; border-bottom: 1px dashed var(--color-border-line); font-size: 13px; }
+.dps-pacerow b { font: 600 15px var(--dps-mono); }
+.dps-pacerow.total { border-bottom: 0; border-top: 2px solid var(--color-fg); }
+.dps-pacerow.total b { color: var(--color-ok); font-size: 18px; }
+
+.dps-quad { position: relative; padding-left: 30px; padding-bottom: 26px; }
+.dps-quadgrid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 6px; }
+.dps-quadgrid .q { padding: 12px; border-radius: 2px; min-height: 74px; display: grid; align-content: start; gap: 3px; font-size: 13px; }
+.dps-quadgrid .q small { font-size: 11px; color: var(--color-fg-muted); }
+.dps-quadgrid .tl { background: color-mix(in srgb, var(--dps-red) 10%, var(--color-panel)); }
+.dps-quadgrid .tr { background: color-mix(in srgb, var(--dps-red) 22%, var(--color-panel)); }
+.dps-quadgrid .bl { background: color-mix(in srgb, var(--dps-blue) 18%, var(--color-panel)); }
+.dps-quadgrid .br { background: color-mix(in srgb, var(--dps-blue) 8%, var(--color-panel)); }
+.dps-quadx { position: absolute; left: 30px; right: 16px; bottom: 30px; font: 500 10.5px var(--dps-mono); color: var(--color-fg-muted); text-align: right; text-transform: uppercase; letter-spacing: .05em; }
+.dps-quady { position: absolute; left: 8px; top: 16px; bottom: 56px; writing-mode: vertical-rl; transform: rotate(180deg); font: 500 10.5px var(--dps-mono); color: var(--color-fg-muted); text-align: right; text-transform: uppercase; letter-spacing: .05em; }
+.dps-quad figcaption { position: absolute; left: 30px; bottom: 6px; }
+
+.dps-aboutfoot { padding: 4px 4px 0; }
+.dps-aboutfoot p { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); max-width: 80ch; margin: 0 0 6px; }
+
 /* ---- 8-bit hero sprites: transparent, outlined, no frame; they hop when you point at them ---- */
 .dps-pix, .dps-table .dps-pix, .dps-t5list li:first-child .dps-pix, .dps-banpix { box-shadow: none; background-color: transparent;
   filter: drop-shadow(2px 2px 0 color-mix(in srgb, var(--color-fg) 22%, transparent)); }
@@ -631,6 +712,15 @@ th[data-tip] { cursor: help; }
 .dps-evsw.ring::before { content: ""; position: absolute; left: 13px; top: 1px; width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid var(--color-fg); background: var(--color-panel); box-sizing: border-box; }
 .dps-evaxisnote { display: flex; justify-content: space-between; margin: 0 24px; font-size: 10.5px; color: var(--color-fg-muted); }
 .dps-evsides { margin-top: 2px; }
+
+/* Quadrant: x-axis label and caption sit below the boxes */
+.dps-quad { padding-bottom: 16px; }
+.dps-quadx, .dps-quad figcaption { position: static; }
+.dps-quadx { margin-top: -2px; }
+.dps-quady { bottom: 70px; }
+
+/* Example bars get more room on phones */
+@media (max-width: 600px) { .dps-aboutfig { padding: 12px 10px; } .dps-demo .dps-bar { grid-template-columns: 5.2rem minmax(0, 1fr) 3.9rem; gap: 4px; } .dps-demo .dps-track { margin: 0 13px; } .dps-demo .dps-bar-label { font-size: 10.5px; } }
 </style>
 
 <div class="dps">
@@ -891,14 +981,21 @@ th[data-tip] { cursor: help; }
 
   <div class="dps-view dps-about" id="about-view" hidden>
     <button class="dps-back" data-back type="button">&larr; Back to home</button>
-    <section class="dps-card dps-aboutlead">
-      <h2 class="dps-name">How it works</h2>
-      <p class="dps-aboutone">xWin asks one question: <b>forget who won. Based on how you actually played, how often does that win?</b></p>
-      <p>Everything here comes from every OpenDota-tracked pro game since The International 2025, refreshed every Monday. This page is the simple version; the <button type="button" class="dps-link" data-nav="notes">full methodology</button> has every detail.</p>
+
+    <section class="dps-abouthero">
+      <div class="dps-abouthero-text">
+        <span class="dps-lab">How it works</span>
+        <h2>Forget who won.<br>How often does the way you played <em>win</em>?</h2>
+        <p>Everything here comes from every OpenDota-tracked pro game since The International 2025, refreshed every Monday. This page is the simple version; the <button type="button" class="dps-link" data-nav="notes">full methodology</button> has every detail.</p>
+      </div>
+      <div class="dps-aboutparade" data-draw="about-art" data-source="heroart" aria-hidden="true">
+        <span data-hero="74"></span><span data-hero="14"></span><span data-hero="8"></span><span data-hero="5"></span>
+        <span data-hero="7"></span><span data-hero="11"></span><span data-hero="2"></span><span data-hero="25"></span>
+      </div>
     </section>
 
-    <div class="dps-aboutgrid">
-      <section class="dps-card">
+    <section class="dps-card dps-aboutrow">
+      <div class="dps-abouttext">
         <h3 class="dps-h2">Percentile bars</h3>
         <p>Every stat is ranked <b>only against players in the same position</b>: carries against carries, Pos 5s against Pos 5s.</p>
         <ul class="dps-aboutlist">
@@ -907,17 +1004,35 @@ th[data-tip] { cursor: help; }
           <li><span class="dps-avgk"></span> the thin line on each bar is where the average player sits.</li>
           <li><span class="dps-stripek"></span> faded, striped bars mean not many games yet. Take them with a grain of salt.</li>
         </ul>
-      </section>
+      </div>
+      <figure class="dps-aboutfig dps-demo" aria-label="Example percentile bars">
+        <div class="dps-bar"><div class="dps-bar-label">Gold / min</div><div class="dps-track"><i style="width:90%;background:#c9373b"></i><span class="dps-avgline" style="left:46%"></span><span class="dps-dot" style="left:90%;background:#c9373b">90</span></div><div class="dps-val">842<small class="dps-avgval">avg 729</small></div></div>
+        <div class="dps-bar"><div class="dps-bar-label">Deaths</div><div class="dps-track"><i style="width:48%;background:#a09ea3"></i><span class="dps-avgline" style="left:52%"></span><span class="dps-dot" style="left:48%;background:#a09ea3">48</span></div><div class="dps-val">4.9<small class="dps-avgval">avg 4.7</small></div></div>
+        <div class="dps-bar"><div class="dps-bar-label">Wards placed</div><div class="dps-track"><i style="width:12%;background:#4a6fb3"></i><span class="dps-avgline" style="left:50%"></span><span class="dps-dot" style="left:12%;background:#4a6fb3">12</span></div><div class="dps-val">2.1<small class="dps-avgval">avg 3.4</small></div></div>
+        <div class="dps-bar small"><div class="dps-bar-label">Late-game xWin</div><div class="dps-track"><i style="width:74%;background:#c56a70"></i><span class="dps-avgline" style="left:49%"></span><span class="dps-dot" style="left:74%;background:#c56a70">74</span></div><div class="dps-val">57.2%<small class="dps-avgval">avg 51.0%</small></div></div>
+        <figcaption>Example bars. The last one is striped: only a handful of long games so far.</figcaption>
+      </figure>
+    </section>
 
-      <section class="dps-card">
+    <section class="dps-card dps-aboutrow flip">
+      <div class="dps-abouttext">
         <h3 class="dps-h2">xWin %: how often does play like this win?</h3>
         <p>We looked at thousands of pro games and learned which stats go with winning <b>for each position</b>: being ahead in lane at 10 minutes, taking a big share of your team’s farm and damage, not dying, landing stuns, keeping wards alive.</p>
         <p>Then for every game, we ask: <i>if a player in this position put up these numbers, how often would their team usually win?</i> That’s their xWin.</p>
         <p>It rates <b>your</b> play, not your team’s result. A support who plays great on a losing team still gets credit; a carry who gets carried doesn’t. It also allows for your hero (some heroes always lose lane) and how strong the enemy was: doing well against Team Spirit counts for more than against a tier-3 team.</p>
         <p><b>Lane xWin</b> is the same idea using only how your lane went at 10:00.</p>
-      </section>
+      </div>
+      <figure class="dps-aboutfig dps-flow" aria-label="How xWin is worked out">
+        <div class="dps-flowin">
+          <span>Lane lead at 10:00</span><span>Share of farm and damage</span><span>Deaths</span><span>Stuns</span><span>Wards that survive</span><span class="adj">+ your hero and the enemy’s strength</span>
+        </div>
+        <div class="dps-flowarrow" aria-hidden="true">&#8595;</div>
+        <div class="dps-flowout"><b>62%</b><span>xWin for that game: teams with play like this usually win 62% of the time</span></div>
+      </figure>
+    </section>
 
-      <section class="dps-card">
+    <section class="dps-card dps-aboutrow">
+      <div class="dps-abouttext">
         <h3 class="dps-h2">WAA: Wins Above Average</h3>
         <p>Your xWin compared with an average player in your position, <b>added up over every game you played</b>.</p>
         <ul class="dps-aboutlist">
@@ -925,9 +1040,18 @@ th[data-tip] { cursor: help; }
           <li><b>0</b>: average.</li>
           <li>It counts up, like WAR in baseball: playing a lot <i>and</i> playing well both raise it.</li>
         </ul>
-      </section>
+      </div>
+      <figure class="dps-aboutfig dps-waa" aria-label="WAA adds up game by game">
+        <div class="dps-waagames">
+          <span class="up">+0.15</span><span class="up">+0.09</span><span class="down">−0.06</span><span class="up">+0.21</span><span class="down">−0.02</span><span class="up">+0.12</span><span class="up">+0.18</span><span class="down">−0.11</span><span class="more">… 79 games</span>
+        </div>
+        <div class="dps-waatotal"><span>=</span><b>+11.7</b><span>WAA</span></div>
+        <figcaption>Each chip is one game: that game’s xWin minus the average carry’s. Add them all up.</figcaption>
+      </figure>
+    </section>
 
-      <section class="dps-card">
+    <section class="dps-card dps-aboutrow flip">
+      <div class="dps-abouttext">
         <h3 class="dps-h2">Movers</h3>
         <p>Who is playing better or worse since the last big tournament started, compared with before it.</p>
         <h3 class="dps-h2">Leads closed and comebacks</h3>
@@ -935,18 +1059,34 @@ th[data-tip] { cursor: help; }
           <li><b>Leads closed</b>: when your team was 5k+ gold ahead at 20 minutes, how often you finished the game. The pro average is about 92%.</li>
           <li><b>Comebacks</b>: when you were 5k+ behind, how often you still won. The pro average is about 9%.</li>
         </ul>
-      </section>
+      </div>
+      <figure class="dps-aboutfig dps-callouts" aria-label="Pro averages">
+        <div class="dps-callout up"><b>92%</b><span>Leads closed<small>pro average, 5k+ ahead at 20:00</small></span></div>
+        <div class="dps-callout down"><b>9%</b><span>Comebacks<small>pro average, 5k+ behind at 20:00</small></span></div>
+        <div class="dps-callout mover"><b>&#9650; &#9660;</b><span>Movers<small>since the last big event began</small></span></div>
+      </figure>
+    </section>
 
-      <section class="dps-card">
+    <section class="dps-card dps-aboutrow">
+      <div class="dps-abouttext">
         <h3 class="dps-h2">Late game and consistency</h3>
         <ul class="dps-aboutlist">
           <li><b>Late-game xWin</b>: how well you play in games that go 45+ minutes.</li>
           <li><b>Scaling</b>: whether you get better or worse as games go long.</li>
           <li><b>Consistency</b>: how much your level swings from game to game. Steady players rank higher.</li>
         </ul>
-      </section>
+      </div>
+      <figure class="dps-aboutfig dps-pace" aria-label="Short and long games">
+        <div class="dps-pacebar"><span class="short">under 30 min</span><span class="mid"></span><span class="long">45+ min</span></div>
+        <div class="dps-pacerow"><span>Short games</span><b>51%</b></div>
+        <div class="dps-pacerow"><span>Long games</span><b>56%</b></div>
+        <div class="dps-pacerow total"><span>Scaling</span><b>+5</b></div>
+        <figcaption>Example: this player gets better the longer the game goes.</figcaption>
+      </figure>
+    </section>
 
-      <section class="dps-card">
+    <section class="dps-card dps-aboutrow flip">
+      <div class="dps-abouttext">
         <h3 class="dps-h2">Team stats</h3>
         <ul class="dps-aboutlist">
           <li><b>Lane at 10:00</b>: how far ahead the team usually is when lanes end.</li>
@@ -954,10 +1094,21 @@ th[data-tip] { cursor: help; }
           <li><b>Expected win %</b>: how often teams with that kind of lane and mid-game usually win.</li>
           <li><b>Team xWin vs actual record</b>: a team winning much more than its play suggests is either lucky or good at something stats can’t see, like drafting or shotcalling.</li>
         </ul>
-      </section>
-    </div>
+      </div>
+      <figure class="dps-aboutfig dps-quad" aria-label="Team styles by lane and mid-game">
+        <div class="dps-quadgrid">
+          <div class="q tl"><b>Mid-game team</b><small>loses lanes, takes over 10–20</small></div>
+          <div class="q tr"><b>Strong everywhere</b><small>ahead early and still pulling away</small></div>
+          <div class="q bl"><b>Behind everywhere</b><small>down in lane and after</small></div>
+          <div class="q br"><b>Laning team</b><small>wins lanes, gives it back</small></div>
+        </div>
+        <div class="dps-quadx">Lane at 10:00 &rarr;</div>
+        <div class="dps-quady">Mid-game swing &rarr;</div>
+        <figcaption>Every team page says which box a team is in.</figcaption>
+      </figure>
+    </section>
 
-    <section class="dps-card dps-aboutfoot">
+    <section class="dps-aboutfoot">
       <p><b>Filters.</b> By default everything uses games since the latest TI against <b>Tier 1 teams</b> (teams that play the big events). Switch to Tier 1 + Tier 2 or all teams, or pick a patch or event, at the top of the home page or from the bar.</p>
       <p>Data from OpenDota. Hero art © Valve. A fan project, not affiliated with Valve or OpenDota.</p>
     </section>
@@ -1851,6 +2002,10 @@ dash.calc('teamagg', {
       btn.addEventListener('click', () => D.setRange(f, t));
       return btn;
     }));
+  });
+
+  dash.draw('about-art', (el) => {
+    el.querySelectorAll('[data-hero]').forEach((s) => { s.classList.add('dps-pix'); if (D.paint(s, s.getAttribute('data-hero'), 'pixel')) s.title = D.heroName(s.getAttribute('data-hero')); });
   });
 
   dash.draw('thin-note', (el) => {
