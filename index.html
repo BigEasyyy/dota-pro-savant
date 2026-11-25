@@ -110,7 +110,7 @@ img { max-width: 100%; }
   const SIZES = {"pm-recent.csv": 2489158, "pm-older.csv": 10822438};
   // Fetch a text file, reporting progress (0-1) against its known size.
   const getText = async (f, onProgress) => {
-    const r = await fetch('data/' + f + '?v=202611251708');
+    const r = await fetch('data/' + f + '?v=202611251713');
     if (!r.ok) throw new Error(f + ' ' + r.status);
     if (!r.body || !onProgress) return r.text();
     const reader = r.body.getReader(), parts = [];
@@ -523,6 +523,26 @@ th[data-tip] { cursor: help; }
 .dps-subpage #movers { display: none; }
 .dps-subpage .dps-toprow { grid-template-columns: minmax(0, 1fr); }
 
+/* ---- Team xWin by event ---- */
+.dps-tourmore { margin-top: 10px; }
+#dps-evsel { max-width: 100%; min-width: 0; }
+#event-xwin .dps-boardbar { align-items: flex-end; }
+.dps-evchart { display: grid; gap: 6px; margin-top: 6px; }
+.dps-evrow { display: grid; grid-template-columns: 10rem minmax(0, 1fr) 7.5rem; gap: 10px; align-items: center; }
+.dps-evname { text-align: right; font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dps-evtrack { position: relative; height: 20px; margin: 0 10px;
+  background: linear-gradient(90deg, transparent calc(50% - .5px), var(--color-border-line) calc(50% - .5px), var(--color-border-line) calc(50% + .5px), transparent calc(50% + .5px)); }
+.dps-evtrack i { position: absolute; top: 4px; height: 12px; border-radius: 1px; opacity: .85; }
+.dps-evring { position: absolute; top: 2px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; border: 2.5px solid var(--color-fg); background: var(--color-panel); box-sizing: border-box; cursor: help; }
+.dps-evnum { font-family: var(--dps-mono); font-size: 12px; white-space: nowrap; }
+.dps-evnum span { color: var(--color-fg-muted); }
+.dps-evscale { color: var(--color-fg-muted); }
+.dps-evaxis { position: relative; height: 14px; margin: 0 10px; }
+.dps-evaxis span { position: absolute; transform: translateX(-50%); font-family: var(--dps-mono); font-size: 10.5px; }
+.dps-evscale .dps-evnum { font-size: 10.5px; }
+.dps-trendkey .k.ring::before { width: 10px; height: 10px; border: 2px solid var(--color-fg); border-top-width: 2px; border-radius: 50%; vertical-align: -1px; }
+@media (max-width: 600px) { .dps-evrow { grid-template-columns: 6.5rem minmax(0, 1fr) 5.2rem; gap: 6px; } .dps-evnum span { display: none; } }
+
 /* ---- 8-bit hero sprites: transparent, outlined, no frame; they hop when you point at them ---- */
 .dps-pix, .dps-table .dps-pix, .dps-t5list li:first-child .dps-pix, .dps-banpix { box-shadow: none; background-color: transparent;
   filter: drop-shadow(2px 2px 0 color-mix(in srgb, var(--color-fg) 22%, transparent)); }
@@ -553,6 +573,14 @@ th[data-tip] { cursor: help; }
 
 /* Numbers inside a KPI value (like the two halves of a record) are not labels */
 .dps-kpi b span { display: inline; font: inherit; color: inherit; text-transform: none; letter-spacing: inherit; }
+
+/* Win-rate ring pinned to the chart edge when it is off the scale */
+.dps-evring.off::after { position: absolute; top: -3px; font: 700 11px var(--dps-mono); color: var(--color-fg); }
+.dps-evring.off.hi::after { content: "›"; left: 13px; }
+.dps-evring.off.lo::after { content: "‹"; right: 13px; }
+
+/* Room at both ends so edge-pinned rings clear the names and numbers */
+.dps-evtrack, .dps-evaxis { margin: 0 24px; }
 </style>
 
 <div class="dps">
@@ -563,7 +591,7 @@ th[data-tip] { cursor: help; }
     </div>
     <div class="dps-search">
       <label class="dps-lab" for="dps-q">Search player, team or hero</label>
-      <input class="dps-in" id="dps-q" type="search" list="dps-names" placeholder="e.g. Speeed, Team Spirit, Invoker" autocomplete="off">
+      <input class="dps-in" id="dps-q" type="search" list="dps-names" placeholder="e.g. Speeed, Gamer Legion, Nature’s Prophet" autocomplete="off">
       <datalist id="dps-names" data-draw="names" data-source="stats teamagg heroart"></datalist>
       <div class="dps-msg" data-draw="search-msg"></div>
     </div>
@@ -637,6 +665,15 @@ th[data-tip] { cursor: help; }
         <tbody data-draw="tournaments"></tbody>
       </table>
     </div>
+    <div class="dps-tourmore" data-draw="tour-more" data-source="tournaments"></div>
+  </section>
+
+  <section class="dps-card" id="event-xwin">
+    <div class="dps-boardbar">
+      <h2 class="dps-h2" style="margin:0">Team xWin by event<small data-draw="evx-sub" data-source="tournaments">—</small></h2>
+      <select class="dash-select" id="dps-evsel" aria-label="Pick a tournament" data-draw="evx-select" data-source="tournaments"></select>
+    </div>
+    <div class="dps-evchart" data-draw="evx-chart" data-source="pm tournaments"></div>
   </section>
 
   <section class="dps-card" id="leaderboard">
@@ -1379,15 +1416,16 @@ dash.calc('teamagg', {
   };
   const listed = (v) => { const S = dash.data('stats'); return (S.status === 'ok' && S.data.some((p) => (p.name + ' · ' + (p.team || 'No team')) === v)) || / — (team|hero)$/.test(v); };
   // Teams and heroes by name, for the main search box.
+  // Names compared without spaces or punctuation, so "gamer legion" finds GamerLegion and "natures prophet" finds Nature's Prophet.
+  const squash = (s) => String(s || '').toLowerCase().replace(/[\s'’.,:;!?()\-_\[\]]/g, '');
+  const findIn = (pool, q) => { const k = squash(q); return k ? (pool.find((x) => squash(x.name) === k) || pool.find((x) => squash(x.name).startsWith(k))) : null; };
   const findTeam = (q) => {
     const T = dash.data('teamagg'), X = dash.data('teams');
-    const pool = (T.status === 'ok' ? T.data : []).concat(X.status === 'ok' ? X.data.map((t) => ({ team: t.team, name: t.name })) : []);
-    return pool.find((t) => (t.name || '').toLowerCase() === q) || pool.find((t) => (t.name || '').toLowerCase().startsWith(q));
+    return findIn((T.status === 'ok' ? T.data : []).concat(X.status === 'ok' ? X.data.map((t) => ({ team: t.team, name: t.name })) : []), q);
   };
   const findHero = (q) => {
     const A = dash.data('heroart'), L = dash.data('herolist');
-    const pool = A.status === 'ok' ? A.data : (L.status === 'ok' ? L.data : []);
-    return pool.find((h) => (h.name || '').toLowerCase() === q) || pool.find((h) => (h.name || '').toLowerCase().startsWith(q));
+    return findIn(A.status === 'ok' ? A.data : (L.status === 'ok' ? L.data : []), q);
   };
   const go = () => {
     const inp = document.getElementById('dps-q');
@@ -1403,8 +1441,8 @@ dash.calc('teamagg', {
     if (kind === 'team' && t) D.openTeam(t.team);
     else if (kind === 'hero' && h) D.openHero(h.hero);
     else if (exactP) D.select(p.id);
-    else if (t && t.name.toLowerCase() === base) D.openTeam(t.team);
-    else if (h && h.name.toLowerCase() === base) D.openHero(h.hero);
+    else if (t && squash(t.name) === squash(base)) D.openTeam(t.team);
+    else if (h && squash(h.name) === squash(base)) D.openHero(h.hero);
     else if (p) D.select(p.id);
     else if (t) D.openTeam(t.team);
     else if (h) D.openHero(h.hero);
@@ -1447,6 +1485,7 @@ dash.calc('teamagg', {
     el.addEventListener('blur', () => dash.draw('to-in'));
   });
   document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => D.show('home')));
+  document.querySelectorAll('#dps-evsel').forEach((sel) => sel.addEventListener('change', () => { D.evx = sel.value; ['evx-sub', 'evx-chart'].forEach((n) => dash.draw(n)); }));
   document.querySelectorAll('.dps-title').forEach((h) => h.addEventListener('click', () => D.show('home')));
   document.querySelectorAll('#dps-min').forEach((s) => s.addEventListener('change', () => dash.setParams({ min: Number(s.value) })));
   document.querySelectorAll('#dps-posf').forEach((sel) => sel.addEventListener('change', () => { D.pos = sel.value; dash.draw('board'); }));
@@ -1958,12 +1997,12 @@ dash.calc('teamagg', {
     const T = dash.data('tournaments');
     if (T.status !== 'ok') { el.textContent = '—'; return; }
     const n = T.data.filter(inRange).length;
-    el.textContent = n ? 'Events whose last match falls in the selected dates, newest first (showing ' + Math.min(n, 12) + ' of ' + n + '). The xWin leader is the best average xWin with 5+ games at the event. Not affected by the opponent filter.' : 'No tournaments ended in the selected dates.';
+    el.textContent = n ? 'The latest events in the selected dates (showing ' + Math.min(n, D.tourAll ? 40 : 3) + ' of ' + n + '). Click an event for its page. The xWin leader is the best average xWin with 5+ games there.' : 'No tournaments ended in the selected dates.';
   });
   dash.draw('tournaments', (el) => {
     const T = dash.data('tournaments');
     if (T.status !== 'ok') { el.replaceChildren(); if (T.status === 'error') empty(el, 7, 'Tournament results failed to load.'); return; }
-    const rows = T.data.filter(inRange).slice(0, 12);
+    const rows = T.data.filter(inRange).slice(0, D.tourAll ? 40 : 3);
     const tid = (name) => { const X = dash.data('teams'); const r = X.status === 'ok' ? X.data.find((t) => t.name === name) : null; return r ? r.team : null; };
     el.replaceChildren(...rows.map((r) => {
       const tr = mk('tr'); tr.setAttribute('data-key', String(r.league));
@@ -1994,6 +2033,75 @@ dash.calc('teamagg', {
       tr.append(nm, dates, champ, fin, mv, xv, act);
       return tr;
     }));
+  });
+
+  dash.draw('tour-more', (el) => {
+    const T = dash.data('tournaments');
+    const n = T.status === 'ok' ? T.data.filter(inRange).length : 0;
+    if (n <= 3) { el.replaceChildren(); return; }
+    const b = mk('button', 'dps-mini', D.tourAll ? 'Show the latest 3' : 'Show all ' + Math.min(n, 40) + ' events'); b.type = 'button';
+    b.addEventListener('click', () => { D.tourAll = !D.tourAll; ['tournaments', 'tour-sub', 'tour-more'].forEach((x) => dash.draw(x)); });
+    el.replaceChildren(b);
+  });
+
+  // ---------- Team xWin at one event ----------
+  const evList = () => { const T = dash.data('tournaments'); return T.status === 'ok' ? T.data.slice().sort((a, b) => (a.end < b.end ? 1 : a.end > b.end ? -1 : b.matches - a.matches)) : []; };
+  const evPick = () => { const L = evList(); return L.find((t) => String(t.league) === String(D.evx)) || L[0] || null; };
+  dash.draw('evx-select', (el) => {
+    const L = evList();
+    el.replaceChildren(...L.map((t) => {
+      const o = document.createElement('option');
+      o.value = String(t.league);
+      o.textContent = t.name + (t.status === 'In progress' ? ' (live)' : '') + ' · ' + d3.utcFormat('%b %Y')(d3.utcParse('%Y-%m-%d')(t.end));
+      return o;
+    }));
+    const t = evPick(); if (t) el.value = String(t.league);
+  });
+  dash.draw('evx-sub', (el) => {
+    const t = evPick();
+    el.textContent = t ? t.name + (t.status === 'In progress' ? ', in progress' : '') + ', ' + D.fmtDate(t.start) + ' – ' + D.fmtDate(t.end) + '. Bar: team xWin (the average xWin of its pros at the event), drawn from 50%. Ring: actual win rate. Every game at the event counts, whatever the filters say.' : '—';
+  });
+  dash.draw('evx-chart', (el) => {
+    const R = dash.data('pm'), t = evPick();
+    if (R.status !== 'ok' || !t) return wait(el, R.status === 'ok' ? 'missing' : R.status, 'Event data');
+    el.classList.remove('dash-skeleton');
+    const agg = new Map();
+    R.data.forEach((r) => {
+      if (String(r.league) !== String(t.league) || !r.team) return;
+      let a = agg.get(r.team); if (!a) agg.set(r.team, (a = { m: new Map(), xs: 0, xn: 0 }));
+      if (!a.m.has(r.match_id)) a.m.set(r.match_id, +r.win);
+      if (has(r.xwin)) { a.xs += +r.xwin; a.xn++; }
+    });
+    // Teams with 3+ games; for big open events, the 20 that played the most.
+    const rows = [...agg.entries()].filter(([, a]) => a.m.size >= 3 && a.xn).map(([team, a]) => {
+      const w = [...a.m.values()].reduce((s, v) => s + v, 0);
+      return { team, n: a.m.size, w, x: a.xs / a.xn * 100, win: w / a.m.size * 100 };
+    }).sort((a, b) => b.n - a.n).slice(0, 20).sort((a, b) => b.x - a.x);
+    if (!rows.length) { el.replaceChildren(mk('p', 'dps-meta', 'No team has 3+ games with listed pros at this event yet.')); return; }
+    // Scale to the xWin bars; a win-rate ring beyond the edge sits on the edge with an arrow.
+    const half = Math.min(50, Math.max(10, Math.ceil(d3.max(rows, (r) => Math.abs(r.x - 50)) / 5) * 5 + 5));
+    const pos = (v) => (Math.max(50 - half, Math.min(50 + half, v)) - (50 - half)) / (2 * half) * 100;
+    const head = mk('div', 'dps-evrow dps-evscale');
+    const sc = mk('div', 'dps-evaxis');
+    [50 - half, 50, 50 + half].forEach((v) => { const s = mk('span', null, v + '%'); s.style.left = pos(v) + '%'; sc.appendChild(s); });
+    head.append(mk('span'), sc, mk('span', 'dps-evnum', 'xWin · record'));
+    const body = rows.map((r) => {
+      const row = mk('div', 'dps-evrow');
+      const name = mk('div', 'dps-evname'); name.append(teamLink(r.team));
+      const tr = mk('div', 'dps-evtrack');
+      const bar = mk('i', r.x >= 50 ? 'up' : 'down');
+      const a = pos(Math.min(r.x, 50)), b = pos(Math.max(r.x, 50));
+      bar.style.left = a + '%'; bar.style.width = Math.max(0.6, b - a) + '%'; bar.style.background = D.color(Math.max(0, Math.min(1, (r.x - 35) / 30)));
+      const off = r.win > 50 + half ? 'hi' : r.win < 50 - half ? 'lo' : '';
+      const ring = mk('span', 'dps-evring' + (off ? ' off ' + off : '')); ring.style.left = pos(r.win) + '%'; ring.title = 'Actual win rate ' + d3.format('.0f')(r.win) + '% (' + r.w + '–' + (r.n - r.w) + ')';
+      tr.append(bar, ring);
+      const num = mk('div', 'dps-evnum'); num.append(mark(mk('b', null, d3.format('.1f')(r.x)), 'pm', 'xwin', t.league, 'league'), mk('span', null, ' · ' + r.w + '–' + (r.n - r.w)));
+      row.append(name, tr, num);
+      return row;
+    });
+    const key = mk('div', 'dps-trendkey');
+    key.append(mk('span', 'k xw', 'Team xWin'), mk('span', 'k ring', 'Actual win % (arrow: off the scale)'));
+    el.replaceChildren(head, ...body, key);
   });
 
   dash.draw('top5', (el) => {
