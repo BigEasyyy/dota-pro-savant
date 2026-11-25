@@ -110,7 +110,7 @@ img { max-width: 100%; }
   const SIZES = {"pm-recent.csv": 2706617, "pm-older.csv": 11771627};
   // Fetch a text file, reporting progress (0-1) against its known size.
   const getText = async (f, onProgress) => {
-    const r = await fetch('data/' + f + '?v=202611251805');
+    const r = await fetch('data/' + f + '?v=202611251820');
     if (!r.ok) throw new Error(f + ' ' + r.status);
     if (!r.body || !onProgress) return r.text();
     const reader = r.body.getReader(), parts = [];
@@ -563,6 +563,21 @@ th[data-tip] { cursor: help; }
 @media (max-width: 600px) { .dps-bar, .dps-scale { grid-template-columns: 6rem minmax(0, 1fr) 4.4rem; } }
 .dps-scale > span:last-child::after { content: "you / avg"; font-size: 10px; }
 
+/* ---- About page ---- */
+.dps-about p { max-width: 68ch; margin: 0 0 10px; line-height: 1.55; }
+.dps-aboutlead .dps-aboutone { font-size: 1.15rem; line-height: 1.45; margin: 10px 0 12px; }
+.dps-aboutgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cds-gap-lg); align-items: start; }
+@media (max-width: 860px) { .dps-aboutgrid { grid-template-columns: minmax(0, 1fr); } }
+.dps-about .dps-h2 + p, .dps-about .dps-h2 + ul { margin-top: 0; }
+.dps-about .dps-card .dps-h2:not(:first-child) { margin-top: 16px; }
+.dps-aboutlist { margin: 0 0 6px; padding-left: 18px; display: grid; gap: 6px; line-height: 1.5; }
+.dps-chipk { display: inline-block; padding: 0 7px; border-radius: 2px; color: #fff; font: 600 11px var(--dps-mono); text-transform: uppercase; letter-spacing: .04em; }
+.dps-chipk.red { background: #cf2f33; } .dps-chipk.grey { background: #8f8f8f; } .dps-chipk.blue { background: #3567b8; }
+.dps-avgk { display: inline-block; width: 2px; height: 14px; background: var(--color-fg); opacity: .6; vertical-align: -2px; margin: 0 4px; }
+.dps-stripek { display: inline-block; width: 34px; height: 8px; border-radius: 1px; vertical-align: 1px; opacity: .55;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .7) 0 3px, transparent 3px 7px), #cf2f33; }
+.dps-aboutfoot p { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+
 /* ---- 8-bit hero sprites: transparent, outlined, no frame; they hop when you point at them ---- */
 .dps-pix, .dps-table .dps-pix, .dps-t5list li:first-child .dps-pix, .dps-banpix { box-shadow: none; background-color: transparent;
   filter: drop-shadow(2px 2px 0 color-mix(in srgb, var(--color-fg) 22%, transparent)); }
@@ -639,7 +654,7 @@ th[data-tip] { cursor: help; }
       <button type="button" class="dps-navbtn" data-nav="teams-home">Teams</button>
       <button type="button" class="dps-navbtn" data-nav="heroes-home">Heroes</button>
       <button type="button" class="dps-navbtn" data-nav="tournaments">Events</button>
-      <button type="button" class="dps-navbtn" data-nav="notes">About</button>
+      <button type="button" class="dps-navbtn" data-nav="about">About</button>
     </div>
     <button type="button" class="dps-filtersum" id="dps-filtersum" aria-controls="dates" aria-expanded="true" title="Change dates, opponents and minimum games">
       <span data-draw="filter-sum" data-source="window">Filters</span><b aria-hidden="true">&#9662;</b>
@@ -873,6 +888,81 @@ th[data-tip] { cursor: help; }
     </div>
   </div>
 
+
+  <div class="dps-view dps-about" id="about-view" hidden>
+    <button class="dps-back" data-back type="button">&larr; Back to home</button>
+    <section class="dps-card dps-aboutlead">
+      <h2 class="dps-name">How it works</h2>
+      <p class="dps-aboutone">xWin asks one question: <b>forget who won. Based on how you actually played, how often does that win?</b></p>
+      <p>Everything here comes from every OpenDota-tracked pro game since The International 2025, refreshed every Monday. This page is the simple version; the <button type="button" class="dps-link" data-nav="notes">full methodology</button> has every detail.</p>
+    </section>
+
+    <div class="dps-aboutgrid">
+      <section class="dps-card">
+        <h3 class="dps-h2">Percentile bars</h3>
+        <p>Every stat is ranked <b>only against players in the same position</b>: carries against carries, Pos 5s against Pos 5s.</p>
+        <ul class="dps-aboutlist">
+          <li><b>90</b> means better than 90% of players in that position.</li>
+          <li><span class="dps-chipk red">red</span> good, <span class="dps-chipk grey">grey</span> average, <span class="dps-chipk blue">blue</span> weak.</li>
+          <li><span class="dps-avgk"></span> the thin line on each bar is where the average player sits.</li>
+          <li><span class="dps-stripek"></span> faded, striped bars mean not many games yet. Take them with a grain of salt.</li>
+        </ul>
+      </section>
+
+      <section class="dps-card">
+        <h3 class="dps-h2">xWin %: how often does play like this win?</h3>
+        <p>We looked at thousands of pro games and learned which stats go with winning <b>for each position</b>: being ahead in lane at 10 minutes, taking a big share of your team’s farm and damage, not dying, landing stuns, keeping wards alive.</p>
+        <p>Then for every game, we ask: <i>if a player in this position put up these numbers, how often would their team usually win?</i> That’s their xWin.</p>
+        <p>It rates <b>your</b> play, not your team’s result. A support who plays great on a losing team still gets credit; a carry who gets carried doesn’t. It also allows for your hero (some heroes always lose lane) and how strong the enemy was: doing well against Team Spirit counts for more than against a tier-3 team.</p>
+        <p><b>Lane xWin</b> is the same idea using only how your lane went at 10:00.</p>
+      </section>
+
+      <section class="dps-card">
+        <h3 class="dps-h2">WAA: Wins Above Average</h3>
+        <p>Your xWin compared with an average player in your position, <b>added up over every game you played</b>.</p>
+        <ul class="dps-aboutlist">
+          <li><b>+10</b>: your play was worth about 10 more wins than an average player would have given your team.</li>
+          <li><b>0</b>: average.</li>
+          <li>It counts up, like WAR in baseball: playing a lot <i>and</i> playing well both raise it.</li>
+        </ul>
+      </section>
+
+      <section class="dps-card">
+        <h3 class="dps-h2">Movers</h3>
+        <p>Who is playing better or worse since the last big tournament started, compared with before it.</p>
+        <h3 class="dps-h2">Leads closed and comebacks</h3>
+        <ul class="dps-aboutlist">
+          <li><b>Leads closed</b>: when your team was 5k+ gold ahead at 20 minutes, how often you finished the game. The pro average is about 92%.</li>
+          <li><b>Comebacks</b>: when you were 5k+ behind, how often you still won. The pro average is about 9%.</li>
+        </ul>
+      </section>
+
+      <section class="dps-card">
+        <h3 class="dps-h2">Late game and consistency</h3>
+        <ul class="dps-aboutlist">
+          <li><b>Late-game xWin</b>: how well you play in games that go 45+ minutes.</li>
+          <li><b>Scaling</b>: whether you get better or worse as games go long.</li>
+          <li><b>Consistency</b>: how much your level swings from game to game. Steady players rank higher.</li>
+        </ul>
+      </section>
+
+      <section class="dps-card">
+        <h3 class="dps-h2">Team stats</h3>
+        <ul class="dps-aboutlist">
+          <li><b>Lane at 10:00</b>: how far ahead the team usually is when lanes end.</li>
+          <li><b>Mid-game swing</b>: gold gained or lost from minute 10 to 20, when rotations, smokes and early fights happen. Some teams lose lanes and then take over here.</li>
+          <li><b>Expected win %</b>: how often teams with that kind of lane and mid-game usually win.</li>
+          <li><b>Team xWin vs actual record</b>: a team winning much more than its play suggests is either lucky or good at something stats can’t see, like drafting or shotcalling.</li>
+        </ul>
+      </section>
+    </div>
+
+    <section class="dps-card dps-aboutfoot">
+      <p><b>Filters.</b> By default everything uses games since the latest TI against <b>Tier 1 teams</b> (teams that play the big events). Switch to Tier 1 + Tier 2 or all teams, or pick a patch or event, at the top of the home page or from the bar.</p>
+      <p>Data from OpenDota. Hero art © Valve. A fan project, not affiliated with Valve or OpenDota.</p>
+    </section>
+  </div>
+
   <div class="dps-view" id="event-view" hidden>
     <button class="dps-back" data-back type="button">&larr; Back to home</button>
     <section class="dps-card" id="event-card" data-draw="ev-head" data-source="tournaments"></section>
@@ -1062,7 +1152,7 @@ window.DPS.teamRow = (t) => {
   return window.DPS._teams.get(String(t)) || null;
 };
 window.DPS.teamName = (t) => { const r = window.DPS.teamRow(t); return r ? r.name : (t ? 'Team ' + t : 'No team'); };
-window.DPS.VIEWS = { home: 'home', player: 'player-view', hero: 'hero-view', team: 'team-view', event: 'event-view' };
+window.DPS.VIEWS = { home: 'home', player: 'player-view', hero: 'hero-view', team: 'team-view', event: 'event-view', about: 'about-view' };
 window.DPS.PLAYER_DRAWS = ['card', 'bars', 'bars-sub', 'line', 'heroes', 'heroart', 'recent', 'trend', 'trend-sub', 'cmp', 'board', 'search-msg', 'top5'];
 window.DPS.redraw = () => window.DPS.PLAYER_DRAWS.forEach((n) => dash.draw(n));
 window.DPS.show = (view, link) => {
@@ -1117,6 +1207,7 @@ window.DPS.route = (hash) => {
   if ((m = /^#e-(\d+)$/.exec(hash))) { D.openEvent(m[1]); return true; }
   if (hash === '#player-view') { D.show('player'); return true; }
   if (hash === '#home') { D.show('home'); return true; }
+  if (hash === '#about') { D.show('about', 'about'); return true; }
   return false;
 };
 try { const s = localStorage.getItem('dps-sel'); if (s) window.DPS.sel = s; } catch (e) {}
@@ -1574,6 +1665,7 @@ dash.calc('teamagg', {
   // Section links in the sticky bar: every one lands on Home, then scrolls to its section.
   const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
   const goSection = (key) => {
+    if (key === 'about') { D.show('about', 'about'); return; }
     D.show('home');
     if (key === 'top') return;
     const el = document.getElementById(key);
