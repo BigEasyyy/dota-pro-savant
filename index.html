@@ -5,6 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dota Pro Savant</title>
 <meta name="description" content="Baseball Savant-style stats for Dota 2 pros: xWin, WAA and percentiles by position, from every pro match since TI 2025.">
+<meta name="theme-color" content="#16191d">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+<link rel="apple-touch-icon" href="img/icon-180.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Dota Pro Savant">
+<meta property="og:title" content="Dota Pro Savant">
+<meta property="og:description" content="xWin, Wins Above Average and percentile bars for every Dota 2 pro, by position. Data through Nov 24, 2026, updated weekly.">
+<meta property="og:url" content="https://bigeasyyy.github.io/dota-pro-savant/">
+<meta property="og:image" content="https://bigeasyyy.github.io/dota-pro-savant/img/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Dota Pro Savant">
+<meta name="twitter:description" content="xWin, WAA and percentile bars for every Dota 2 pro, by position.">
+<meta name="twitter:image" content="https://bigeasyyy.github.io/dota-pro-savant/img/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
@@ -42,17 +57,22 @@ img { max-width: 100%; }
 @media (prefers-reduced-motion: reduce) { .dash-skeleton { animation: none; } }
 .site-foot { max-width: 1280px; margin: 28px auto 0; color: var(--color-fg-muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
 .site-foot a { color: inherit; }
-#site-loading { padding: 40px 0; color: var(--color-fg-muted); }
+#site-loading { padding: 40px 0; color: var(--color-fg-muted); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; letter-spacing: .04em; }
+.site-bar { display: block; height: 4px; max-width: 320px; margin-top: 10px; background: color-mix(in srgb, var(--color-fg) 10%, transparent); border-radius: 2px; overflow: hidden; }
+.site-bar i { display: block; height: 100%; width: 0; background: #cf2f33; transition: width .2s linear; }
+#site-more { position: fixed; z-index: 30; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom, 0px)); background: #16191d; color: #ece7dc;
+  font: 12px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .03em; padding: 8px 14px; border-radius: 3px; box-shadow: 0 6px 18px rgba(0,0,0,.35); max-width: calc(100% - 32px); }
 </style>
 </head>
 <body>
-<div id="site-loading">Loading pro match data…</div>
+<div id="site-loading"><span id="site-loading-text">Loading pro match data…</span><span class="site-bar"><i id="site-bar"></i></span></div>
+<div id="site-more" hidden>Loading older games…</div>
 <div id="site">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script>
 /* Stand-in for the dashboard runtime: data files, derived tables (calcs), drawings and the viewer's filters. */
 (function () {
-  const FILES = {"pm": "pm.csv", "players": "players.csv", "herolist": "herolist.csv", "leagues": "leagues.csv", "events": "events.csv", "model": "model.csv", "tournaments": "tournaments.csv", "teams": "teams.csv", "heroart": "heroart.csv", "refreshlog": "refreshlog.csv", "patches": "patches.csv", "scope": "scope.json"};
+  const FILES = {"pm-recent": "pm-recent.csv", "players": "players.csv", "herolist": "herolist.csv", "leagues": "leagues.csv", "events": "events.csv", "model": "model.csv", "tournaments": "tournaments.csv", "teams": "teams.csv", "heroart": "heroart.csv", "refreshlog": "refreshlog.csv", "patches": "patches.csv", "scope": "scope.json"};
   const DATA = {}, CALCS = {}, DRAWS = {}, CACHE = {};
   let loaded = false;
   let PARAMS = { from: '', to: '', min: 15, opp: 1 };
@@ -87,14 +107,32 @@ img { max-width: 100%; }
       });
     }
   };
+  const SIZES = {"pm-recent.csv": 1891830, "pm-older.csv": 8225912};
+  // Fetch a text file, reporting progress (0-1) against its known size.
+  const getText = async (f, onProgress) => {
+    const r = await fetch('data/' + f + '?v=202611251617');
+    if (!r.ok) throw new Error(f + ' ' + r.status);
+    if (!r.body || !onProgress) return r.text();
+    const reader = r.body.getReader(), parts = [];
+    let got = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value); got += value.length;
+      onProgress(Math.min(1, got / (SIZES[f] || got)));
+    }
+    return new TextDecoder().decode(await new Blob(parts).arrayBuffer());
+  };
+  const bar = (p) => { const b = document.getElementById('site-bar'); if (b) b.style.width = Math.round(p * 100) + '%'; };
   window.addEventListener('DOMContentLoaded', async () => {
     try {
       const got = await Promise.all(Object.entries(FILES).map(async ([k, f]) => {
-        const r = await fetch('data/' + f + '?v=202611251542');
-        if (!r.ok) throw new Error(f + ' ' + r.status);
-        return [k, f.endsWith('.json') ? (await r.json()).rows : d3.csvParse(await r.text())];
+        const txt = await getText(f, f === 'pm-recent.csv' ? bar : null);
+        return [k, f.endsWith('.json') ? JSON.parse(txt).rows : d3.csvParse(txt)];
       }));
       got.forEach(([k, v]) => { DATA[k] = v; });
+      // Games since the latest TI arrive first; the older ones load next, in the background.
+      DATA.pm = DATA['pm-recent']; delete DATA['pm-recent'];
       // Default dates: since the latest The International, unless this viewer picked something before.
       if (!PARAMS.from) {
         const ev = DATA.events.slice().sort((a, b) => (a.start < b.start ? 1 : -1))[0];
@@ -104,6 +142,15 @@ img { max-width: 100%; }
       document.getElementById('site-loading').hidden = true;
       drawAll();
       if (location.hash && window.DPS && window.DPS.route) window.DPS.route(location.hash);
+      const more = document.getElementById('site-more');
+      more.hidden = false;
+      const older = d3.csvParse(await getText('pm-older.csv', (p) => {
+        more.textContent = 'Loading games before Aug 13, 2026… ' + Math.round(p * 100) + '%';
+      }));
+      DATA.pm = older.concat(DATA.pm);
+      Object.keys(CACHE).forEach((k) => delete CACHE[k]);
+      more.hidden = true;
+      drawAll();
     } catch (e) {
       document.getElementById('site-loading').textContent = 'The data failed to load (' + e.message + '). Refresh to try again.';
     }
@@ -428,6 +475,31 @@ th[data-tip] { cursor: help; }
   .dps-heroart, .dps-banart { opacity: calc(var(--dps-art-op) * .7); }
 }
 
+/* ---- Sticky section bar and filter summary ---- */
+.dps-nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  background-color: var(--dps-ink); background-image: var(--dps-grain); color: var(--dps-ink-fg); border-radius: 3px;
+  box-shadow: 0 8px 16px -12px rgba(0, 0, 0, .7); }
+.dps-navtabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1 1 auto; }
+.dps-navtabs::-webkit-scrollbar { display: none; }
+.dps-navbtn { font: 500 11.5px var(--dps-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--dps-ink-muted); background: none; border: 0;
+  padding: 8px 10px; border-radius: 2px; cursor: pointer; white-space: nowrap; }
+.dps-navbtn:hover, .dps-navbtn:focus-visible { color: var(--dps-ink-fg); background: rgba(255, 255, 255, .08); outline: none; }
+.dps-filtersum { flex: 0 1 auto; display: inline-flex; align-items: center; gap: 8px; max-width: 46%; min-width: 0; font: 12px var(--font-anthropic-sans); color: var(--dps-ink-fg);
+  background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .2); border-radius: 2px; padding: 6px 10px; cursor: pointer; }
+.dps-filtersum:hover, .dps-filtersum:focus-visible { border-color: var(--dps-red); outline: none; }
+.dps-filtersum span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.dps-filtersum b { color: var(--dps-red); font-size: 11px; }
+.dps-filterhead { display: none; }
+.dps-card, .dps-foot { scroll-margin-top: 64px; }
+@media (max-width: 700px) {
+  .dps-nav { flex-wrap: wrap; padding: 4px 6px 6px; gap: 4px; }
+  .dps-navbtn { padding: 8px 8px; font-size: 11px; }
+  .dps-filtersum { max-width: none; width: 100%; justify-content: space-between; }
+  .dps-filterhead { display: flex; align-items: center; justify-content: space-between; }
+  #dates.dps-collapsed { display: none; }
+  .dps-card, .dps-foot { scroll-margin-top: 96px; }
+}
+
 /* ---- 8-bit hero sprites: transparent, outlined, no frame; they hop when you point at them ---- */
 .dps-pix, .dps-table .dps-pix, .dps-t5list li:first-child .dps-pix, .dps-banpix { box-shadow: none; background-color: transparent;
   filter: drop-shadow(2px 2px 0 color-mix(in srgb, var(--color-fg) 22%, transparent)); }
@@ -445,6 +517,9 @@ th[data-tip] { cursor: help; }
 .dps-sr { left: 0; top: 0; white-space: nowrap; }
 
 .dps-view[hidden] { display: none; }
+
+/* The page column never grows past the screen; wide content scrolls inside its own box */
+.dps, .dps-view { grid-template-columns: minmax(0, 1fr); }
 </style>
 
 <div class="dps">
@@ -461,8 +536,23 @@ th[data-tip] { cursor: help; }
     </div>
   </header>
 
+  <nav class="dps-nav" id="dps-nav" aria-label="Sections">
+    <div class="dps-navtabs">
+      <button type="button" class="dps-navbtn" data-nav="top">Home</button>
+      <button type="button" class="dps-navbtn" data-nav="leaderboard">Leaderboard</button>
+      <button type="button" class="dps-navbtn" data-nav="teams-home">Teams</button>
+      <button type="button" class="dps-navbtn" data-nav="heroes-home">Heroes</button>
+      <button type="button" class="dps-navbtn" data-nav="tournaments">Events</button>
+      <button type="button" class="dps-navbtn" data-nav="notes">About</button>
+    </div>
+    <button type="button" class="dps-filtersum" id="dps-filtersum" aria-controls="dates" aria-expanded="true" title="Change dates, opponents and minimum games">
+      <span data-draw="filter-sum" data-source="window">Filters</span><b aria-hidden="true">&#9662;</b>
+    </button>
+  </nav>
+
   <div class="dps-toprow">
   <section class="dps-card dps-filter" id="dates">
+    <div class="dps-filterhead"><span class="dps-lab">Filters</span><button type="button" class="dps-mini" id="dps-filterdone">Done</button></div>
     <div class="dps-filterline"><span class="dps-lab">Opponents</span><div class="dps-presets" data-draw="opp-chips" data-source="window" aria-label="Opponent strength"></div></div>
     <div class="dps-filterline"><span class="dps-lab">Dates</span><div class="dps-presets" data-draw="presets" data-source="events" aria-label="Date presets"></div></div>
     <div class="dps-filterline"><span class="dps-lab">Patch</span><div class="dps-presets" data-draw="patch-chips" data-source="patches" aria-label="Game patch"></div></div>
@@ -1267,6 +1357,33 @@ dash.calc('teamagg', {
     if (!tr) return;
     D.select(tr.getAttribute('data-pid'), tr.getAttribute('data-pos'));
   }));
+  // Section links in the sticky bar: every one lands on Home, then scrolls to its section.
+  const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
+  const goSection = (key) => {
+    D.show('home');
+    if (key === 'top') return;
+    const el = document.getElementById(key);
+    if (!el) return;
+    if (key === 'notes') el.open = true;
+    el.scrollIntoView({ behavior: smooth(), block: 'start' });
+  };
+  document.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', () => goSection(b.getAttribute('data-nav'))));
+  // Filters: always open on wide screens; on phones they fold away behind the summary button.
+  const phone = matchMedia('(max-width: 700px)');
+  const setFilters = (open) => {
+    document.querySelectorAll('#dates').forEach((d) => d.classList.toggle('dps-collapsed', !open));
+    document.querySelectorAll('#dps-filtersum').forEach((b) => b.setAttribute('aria-expanded', String(open)));
+  };
+  setFilters(!phone.matches);
+  phone.addEventListener('change', () => setFilters(!phone.matches));
+  document.querySelectorAll('#dps-filtersum').forEach((b) => b.addEventListener('click', () => {
+    const d = document.getElementById('dates');
+    if (!d) return;
+    if (phone.matches && d.classList.contains('dps-collapsed')) setFilters(true);
+    else if (phone.matches) { setFilters(false); return; }
+    d.scrollIntoView({ behavior: smooth(), block: 'start' });
+  }));
+  document.querySelectorAll('#dps-filterdone').forEach((b) => b.addEventListener('click', () => setFilters(false)));
   D.route(location.hash);
   window.addEventListener('hashchange', () => { if (location.hash !== '#' + D.link) D.route(location.hash); });
 })();
@@ -1946,6 +2063,28 @@ dash.calc('teamagg', {
         mk('td', won ? 'dps-win' : 'dps-loss', won ? 'W' : 'L'), mk('td', null, xn ? pct(xs / xn * 100) : '—'));
       return tr;
     }));
+  });
+
+  dash.draw('filter-sum', (el) => {
+    const prm = dash.params(), b = bounds(), E = dash.data('events'), P = dash.data('patches');
+    const from = prm.from || (b ? b.first : ''), to = prm.to || '';
+    const short = (n) => n.replace('The International ', 'TI ');
+    const md = (s) => d3.utcFormat('%b %-d')(d3.utcParse('%Y-%m-%d')(s));
+    let label = '';
+    if (E.status === 'ok') {
+      const ev = E.data.slice().sort((a, c) => (a.start < c.start ? 1 : -1));
+      if (ev[0] && from === ev[0].start && !to) label = 'Since ' + short(ev[0].event);
+      const hit = E.data.find((e) => e.start === from && e.end === to);
+      if (!label && hit) label = short(hit.event) + ' only';
+    }
+    if (!label && P.status === 'ok') {
+      P.data.slice().sort((a, c) => (a.start < c.start ? 1 : -1)).forEach((p, i) => {
+        if (!label && from === p.start && to === (i === 0 ? '' : p.end)) label = 'Patch ' + p.patch;
+      });
+    }
+    if (!label) label = (from ? md(from) : 'Start') + ' – ' + (to ? md(to) : 'now');
+    const opp = { 1: 'vs Tier 1', 2: 'vs Tier 1–2', 3: 'vs all teams' }[Number(prm.opp) || 1];
+    el.textContent = label + ' · ' + opp + ' · ' + (Number(prm.min) || 15) + '+ games';
   });
 
   dash.draw('patch-chips', (el) => {
