@@ -1,0 +1,128 @@
+hero,name,idx,cols,rows,big,pixel
+1,Anti-Mage,0,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+2,Axe,1,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+3,Bane,2,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+4,Bloodseeker,3,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+5,Crystal Maiden,4,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+6,Drow Ranger,5,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+7,Earthshaker,6,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+8,Juggernaut,7,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+9,Mirana,8,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+10,Morphling,9,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+11,Shadow Fiend,10,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+12,Phantom Lancer,11,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+13,Puck,12,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+14,Pudge,13,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+15,Razor,14,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+16,Sand King,15,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+17,Storm Spirit,16,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+18,Sven,17,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+19,Tiny,18,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+20,Vengeful Spirit,19,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+21,Windranger,20,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+22,Zeus,21,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+23,Kunkka,22,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+25,Lina,23,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+26,Lion,24,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+27,Shadow Shaman,25,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+28,Slardar,26,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+29,Tidehunter,27,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+30,Witch Doctor,28,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+31,Lich,29,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+32,Riki,30,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+33,Enigma,31,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+34,Tinker,32,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+35,Sniper,33,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+36,Necrophos,34,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+37,Warlock,35,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+38,Beastmaster,36,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+39,Queen of Pain,37,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+40,Venomancer,38,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+41,Faceless Void,39,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+42,Wraith King,40,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+43,Death Prophet,41,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+44,Phantom Assassin,42,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+45,Pugna,43,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+46,Templar Assassin,44,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+47,Viper,45,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+48,Luna,46,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+49,Dragon Knight,47,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+50,Dazzle,48,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+51,Clockwerk,49,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+52,Leshrac,50,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+53,Nature's Prophet,51,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+54,Lifestealer,52,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+55,Dark Seer,53,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+56,Clinkz,54,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+57,Omniknight,55,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+58,Enchantress,56,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+59,Huskar,57,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+60,Night Stalker,58,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+61,Broodmother,59,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+62,Bounty Hunter,60,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+63,Weaver,61,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+64,Jakiro,62,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+65,Batrider,63,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+66,Chen,64,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+67,Spectre,65,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+68,Ancient Apparition,66,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+69,Doom,67,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+70,Ursa,68,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+71,Spirit Breaker,69,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+72,Gyrocopter,70,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+73,Alchemist,71,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+74,Invoker,72,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+75,Silencer,73,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+76,Outworld Devourer,74,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+77,Lycan,75,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+78,Brewmaster,76,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+79,Shadow Demon,77,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+80,Lone Druid,78,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+81,Chaos Knight,79,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+82,Meepo,80,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+83,Treant Protector,81,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+84,Ogre Magi,82,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+85,Undying,83,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+86,Rubick,84,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+87,Disruptor,85,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+88,Nyx Assassin,86,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+89,Naga Siren,87,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+90,Keeper of the Light,88,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+91,Io,89,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+92,Visage,90,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+93,Slark,91,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+94,Medusa,92,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+95,Troll Warlord,93,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+96,Centaur Warrunner,94,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+97,Magnus,95,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+98,Timbersaw,96,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+99,Bristleback,97,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+100,Tusk,98,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+101,Skywrath Mage,99,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+102,Abaddon,100,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+103,Elder Titan,101,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+104,Legion Commander,102,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+105,Techies,103,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+106,Ember Spirit,104,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+107,Earth Spirit,105,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+108,Underlord,106,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+109,Terrorblade,107,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+110,Phoenix,108,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+111,Oracle,109,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+112,Winter Wyvern,110,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+113,Arc Warden,111,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+114,Monkey King,112,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+119,Dark Willow,113,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+120,Pangolier,114,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+121,Grimstroke,115,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+123,Hoodwink,116,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+126,Void Spirit,117,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+128,Snapfire,118,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+129,Mars,119,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+131,Ring Master,120,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+135,Dawnbreaker,121,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+136,Marci,122,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+137,Primal Beast,123,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+138,Muerta,124,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+145,Kez,125,16,8,img/hero-sprite.jpg,img/hero-pixel.png
+155,Largo,126,16,8,img/hero-sprite.jpg,img/hero-pixel.png

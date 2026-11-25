@@ -1,0 +1,66 @@
+pos,feature,label,group,weight
+1,e_gold,Gold lead at 10:00,10-minute,0.68
+1,e_xp,XP lead at 10:00,10-minute,0.03
+1,e_lh,Last-hit lead at 10:00,10-minute,0.0
+1,e_dn,Denies at 10:00,10-minute,0.08
+1,s_gold,Share of team gold,Whole game,0.0
+1,s_dmg,Share of team hero damage,Whole game,0.03
+1,s_tower,Share of team tower damage,Whole game,0.6
+1,s_heal,Share of team healing,Whole game,0.01
+1,kp,Kill participation,Whole game,0.2
+1,s_death,Share of team deaths,Whole game,-0.28
+1,stun_m,Stuns per minute,Whole game,0.18
+1,ward_m,Wards per 10 min,Whole game,0.07
+1,stack_m,Stacks per 10 min,Whole game,0.07
+2,e_gold,Gold lead at 10:00,10-minute,0.51
+2,e_xp,XP lead at 10:00,10-minute,0.06
+2,e_lh,Last-hit lead at 10:00,10-minute,0.0
+2,e_dn,Denies at 10:00,10-minute,0.0
+2,s_gold,Share of team gold,Whole game,0.0
+2,s_dmg,Share of team hero damage,Whole game,0.0
+2,s_tower,Share of team tower damage,Whole game,0.0
+2,s_heal,Share of team healing,Whole game,0.0
+2,kp,Kill participation,Whole game,0.22
+2,s_death,Share of team deaths,Whole game,-0.14
+2,stun_m,Stuns per minute,Whole game,0.16
+2,ward_m,Wards per 10 min,Whole game,0.01
+2,stack_m,Stacks per 10 min,Whole game,0.09
+3,e_gold,Gold lead at 10:00,10-minute,0.69
+3,e_xp,XP lead at 10:00,10-minute,0.06
+3,e_lh,Last-hit lead at 10:00,10-minute,0.0
+3,e_dn,Denies at 10:00,10-minute,0.12
+3,s_gold,Share of team gold,Whole game,0.0
+3,s_dmg,Share of team hero damage,Whole game,0.0
+3,s_tower,Share of team tower damage,Whole game,0.0
+3,s_heal,Share of team healing,Whole game,0.03
+3,kp,Kill participation,Whole game,0.32
+3,s_death,Share of team deaths,Whole game,-0.05
+3,stun_m,Stuns per minute,Whole game,0.06
+3,ward_m,Wards per 10 min,Whole game,0.03
+3,stack_m,Stacks per 10 min,Whole game,0.14
+4,e_gold,Gold lead at 10:00,10-minute,0.25
+4,e_xp,XP lead at 10:00,10-minute,0.36
+4,e_lh,Last-hit lead at 10:00,10-minute,0.0
+4,e_dn,Denies at 10:00,10-minute,0.05
+4,s_gold,Share of team gold,Whole game,0.0
+4,s_dmg,Share of team hero damage,Whole game,0.0
+4,s_tower,Share of team tower damage,Whole game,0.0
+4,s_heal,Share of team healing,Whole game,0.1
+4,kp,Kill participation,Whole game,0.0
+4,s_death,Share of team deaths,Whole game,-0.0
+4,stun_m,Stuns per minute,Whole game,0.12
+4,ward_m,Wards per 10 min,Whole game,0.06
+4,stack_m,Stacks per 10 min,Whole game,0.11
+5,e_gold,Gold lead at 10:00,10-minute,0.3
+5,e_xp,XP lead at 10:00,10-minute,0.34
+5,e_lh,Last-hit lead at 10:00,10-minute,0.0
+5,e_dn,Denies at 10:00,10-minute,0.06
+5,s_gold,Share of team gold,Whole game,0.05
+5,s_dmg,Share of team hero damage,Whole game,0.0
+5,s_tower,Share of team tower damage,Whole game,0.0
+5,s_heal,Share of team healing,Whole game,0.09
+5,kp,Kill participation,Whole game,0.0
+5,s_death,Share of team deaths,Whole game,-0.0
+5,stun_m,Stuns per minute,Whole game,0.1
+5,ward_m,Wards per 10 min,Whole game,0.07
+5,stack_m,Stacks per 10 min,Whole game,0.12

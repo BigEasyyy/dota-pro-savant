@@ -1,0 +1,2087 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dota Pro Savant</title>
+<meta name="description" content="Baseball Savant-style stats for Dota 2 pros: xWin, WAA and percentiles by position, from every pro match since TI 2025.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one centred column, max 1280px, 16px+ side gutter. Tokens below are the ones the page is written against. */
+:root {
+  --font-anthropic-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 14px; --cds-gap-lg: 20px; --cds-pad-lg: 20px; --cds-radius: 3px;
+  --cds-font-size-title: 2rem; --cds-font-size-heading: 1.125rem; --cds-font-size-body: 0.875rem; --cds-font-size-caption: 0.75rem;
+  --cds-font-weight-medium: 600;
+  --site-bg: #efece5; --color-panel: #fbfaf7; --color-fg: #1c1b19; --color-fg-muted: #67645d; --color-border-line: #d9d4c8;
+  --color-ok: #2a7a3b; --color-bad: #c0392b; --color-warn: #a86a00;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --site-bg: #121416; --color-panel: #1a1d20; --color-fg: #ecebe7; --color-fg-muted: #a09d96; --color-border-line: #33373c;
+    --color-ok: #5cc06f; --color-bad: #ef6b5e; --color-warn: #e0a640; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --site-bg: #121416; --color-panel: #1a1d20; --color-fg: #ecebe7; --color-fg-muted: #a09d96; --color-border-line: #33373c;
+  --color-ok: #5cc06f; --color-bad: #ef6b5e; --color-warn: #e0a640; color-scheme: dark;
+}
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--site-bg); color: var(--color-fg); font: 14px/1.45 var(--font-anthropic-sans);
+  padding-block: max(16px, env(safe-area-inset-top, 0px)) 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+#site { max-width: 1280px; margin: 0 auto; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+.dash-select { font: inherit; padding: 7px 10px; border: 1px solid var(--color-border-line); border-radius: 3px; background: var(--color-panel); color: var(--color-fg); }
+.dash-skeleton { min-height: 1em; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-fg) 6%, transparent), transparent); background-size: 200% 100%; animation: site-shimmer 1.2s linear infinite; }
+@keyframes site-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .dash-skeleton { animation: none; } }
+.site-foot { max-width: 1280px; margin: 28px auto 0; color: var(--color-fg-muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.site-foot a { color: inherit; }
+#site-loading { padding: 40px 0; color: var(--color-fg-muted); }
+</style>
+</head>
+<body>
+<div id="site-loading">Loading pro match data…</div>
+<div id="site">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+/* Stand-in for the dashboard runtime: data files, derived tables (calcs), drawings and the viewer's filters. */
+(function () {
+  const FILES = {"pm": "pm.csv", "players": "players.csv", "herolist": "herolist.csv", "leagues": "leagues.csv", "events": "events.csv", "model": "model.csv", "tournaments": "tournaments.csv", "teams": "teams.csv", "heroart": "heroart.csv", "refreshlog": "refreshlog.csv", "patches": "patches.csv", "scope": "scope.json"};
+  const DATA = {}, CALCS = {}, DRAWS = {}, CACHE = {};
+  let loaded = false;
+  let PARAMS = { from: '', to: '', min: 15, opp: 1 };
+  try { Object.assign(PARAMS, JSON.parse(localStorage.getItem('dps-params') || '{}')); } catch (e) {}
+  const drawAll = () => Object.keys(DRAWS).forEach((n) => window.dash.draw(n));
+  window.dash = {
+    calc: (name, def) => { CALCS[name] = def; },
+    data: (name) => {
+      if (!loaded) return { status: 'loading', data: null };
+      if (DATA[name]) return { status: 'ok', data: DATA[name] };
+      if (CALCS[name]) {
+        if (!CACHE[name]) {
+          try { CACHE[name] = CALCS[name].fn(...CALCS[name].inputs.map((i) => window.dash.data(i).data)); }
+          catch (e) { console.error('calc ' + name, e); return { status: 'error', data: null }; }
+        }
+        return { status: 'ok', data: CACHE[name] };
+      }
+      return { status: 'missing', data: null };
+    },
+    params: () => PARAMS,
+    setParams: (p) => {
+      PARAMS = Object.assign({}, PARAMS, p);
+      try { localStorage.setItem('dps-params', JSON.stringify(PARAMS)); } catch (e) {}
+      Object.keys(CACHE).forEach((k) => delete CACHE[k]);
+      drawAll();
+    },
+    setLink: (name) => { if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name); },
+    draw: (name, fn) => {
+      if (fn) { DRAWS[name] = fn; return; }
+      document.querySelectorAll('[data-draw="' + name + '"]').forEach((el) => {
+        try { DRAWS[name] && DRAWS[name](el); } catch (e) { console.error('draw ' + name, e); }
+      });
+    }
+  };
+  window.addEventListener('DOMContentLoaded', async () => {
+    try {
+      const got = await Promise.all(Object.entries(FILES).map(async ([k, f]) => {
+        const r = await fetch('data/' + f + '?v=202611251542');
+        if (!r.ok) throw new Error(f + ' ' + r.status);
+        return [k, f.endsWith('.json') ? (await r.json()).rows : d3.csvParse(await r.text())];
+      }));
+      got.forEach(([k, v]) => { DATA[k] = v; });
+      // Default dates: since the latest The International, unless this viewer picked something before.
+      if (!PARAMS.from) {
+        const ev = DATA.events.slice().sort((a, b) => (a.start < b.start ? 1 : -1))[0];
+        PARAMS.from = ev ? ev.start : '';
+      }
+      loaded = true;
+      document.getElementById('site-loading').hidden = true;
+      drawAll();
+      if (location.hash && window.DPS && window.DPS.route) window.DPS.route(location.hash);
+    } catch (e) {
+      document.getElementById('site-loading').textContent = 'The data failed to load (' + e.message + '). Refresh to try again.';
+    }
+  });
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+.dps { --dps-blue: #3567b8; --dps-mid: #a3a3a3; --dps-red: #cf2f33; display: grid; gap: var(--cds-gap-lg); font-family: var(--font-anthropic-sans); color: var(--color-fg); }
+.dps-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--cds-gap-md); }
+.dps-title { margin: 0; font-family: var(--dps-display); font-weight: 400; font-size: var(--cds-font-size-title); line-height: 1.1; text-wrap: balance; }
+.dps-sub { margin: var(--cds-gap-xs) 0 0; color: var(--color-fg-muted); max-width: 66ch; }
+.dps-search { display: grid; gap: var(--cds-gap-xs); flex: 1 1 260px; max-width: 360px; }
+.dps-lab { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); letter-spacing: .04em; text-transform: uppercase; }
+.dps-in { font: inherit; padding: 9px 12px; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-panel); color: var(--color-fg); width: 100%; box-sizing: border-box; }
+.dps-in:focus-visible { outline: 2px solid var(--dps-blue); outline-offset: 1px; }
+.dps-msg { font-size: var(--cds-font-size-caption); color: var(--color-bad); }
+.dps-filter { display: grid; gap: var(--cds-gap-sm); }
+.dps-filter-row { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); align-items: flex-end; }
+.dps-field { display: grid; gap: 4px; min-width: 0; }
+.dps-field .dps-in { width: auto; padding: 7px 10px; }
+.dps-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.dps-chip { font: inherit; font-size: var(--cds-font-size-caption); padding: 6px 12px; border-radius: 999px; border: 1px solid var(--color-border-line); background: var(--color-panel); color: var(--color-fg); cursor: pointer; }
+.dps-chip:hover { border-color: var(--dps-blue); }
+.dps-chip:focus-visible { outline: 2px solid var(--dps-blue); outline-offset: 1px; }
+.dps-chip.on { background: var(--dps-red); border-color: var(--dps-red); color: #fff; }
+.dps-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; }
+.dps-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--cds-gap-lg); align-items: start; }
+@media (max-width: 860px) { .dps-grid { grid-template-columns: minmax(0, 1fr); } }
+.dps-col { display: grid; gap: var(--cds-gap-lg); min-width: 0; }
+.dps-h2 { margin: 0 0 var(--cds-gap-sm); font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+.dps-h2 small { display: block; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-weight: 400; margin-top: 2px; }
+.dps-bio { min-height: 150px; }
+.dps-namerow { display: flex; align-items: center; gap: var(--cds-gap-md); }
+.dps-posbadge { flex: none; display: grid; place-items: center; width: 64px; height: 64px; border-radius: var(--cds-radius); background: var(--dps-red); color: #fff; line-height: 1; text-align: center; }
+.dps-posbadge small { display: block; font-size: 10px; letter-spacing: .1em; font-weight: 700; }
+.dps-posbadge b { display: block; font-family: var(--dps-display); font-weight: 400; font-size: 30px; }
+.dps-posname { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+.dps-name { font-family: var(--dps-display); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; line-height: 1.1; overflow-wrap: anywhere; }
+.dps-meta { color: var(--color-fg-muted); margin-top: 4px; }
+.dps-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; background: color-mix(in srgb, var(--dps-red) 14%, transparent); color: var(--color-fg); font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); margin-top: var(--cds-gap-sm); }
+.dps-notice { margin-top: var(--cds-gap-sm); font-size: var(--cds-font-size-caption); color: var(--color-warn); }
+.dps-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--cds-gap-sm); margin-top: var(--cds-gap-md); }
+@media (max-width: 480px) { .dps-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.dps-kpi span { display: block; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); text-transform: uppercase; letter-spacing: .04em; }
+.dps-kpi b { font-family: var(--dps-display); font-weight: 400; font-size: var(--cds-font-size-heading); font-variant-numeric: tabular-nums; }
+.dps-best { margin-top: var(--cds-gap-sm); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.dps-best b { color: var(--color-fg); }
+.dps-bars { display: grid; gap: 14px; min-height: 320px; padding-top: 4px; }
+.dps-bar { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) 4.2rem; align-items: center; gap: var(--cds-gap-sm); }
+.dps-bar-label { text-align: right; font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); line-height: 1.2; }
+.dps-track { position: relative; height: 28px; }
+.dps-track::before { content: ""; position: absolute; left: 0; right: 0; top: 13px; height: 2px; background: var(--color-border-line); }
+.dps-track i { position: absolute; left: 0; top: 11px; height: 6px; border-radius: 3px; opacity: .55; }
+.dps-track::after { content: ""; position: absolute; left: 50%; top: 7px; height: 14px; width: 1px; background: var(--color-border-line); }
+.dps-dot { position: absolute; top: 0; width: 28px; height: 28px; margin-left: -14px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--color-panel); z-index: 1; }
+.dps-val { font-variant-numeric: tabular-nums; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.dps-scale { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) 4.2rem; gap: var(--cds-gap-sm); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin-top: var(--cds-gap-sm); }
+.dps-scale div { display: flex; justify-content: space-between; }
+.dps-legend { display: inline-block; width: 60px; height: 6px; border-radius: 3px; vertical-align: middle; background: linear-gradient(90deg, var(--dps-blue), var(--dps-mid), var(--dps-red)); }
+@media (max-width: 480px) { .dps-bar, .dps-scale { grid-template-columns: 6.5rem minmax(0, 1fr) 3.6rem; } }
+.dps-tablewrap { overflow-x: auto; min-width: 0; }
+.dps-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: var(--cds-font-size-caption); }
+.dps-table th { text-align: right; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); padding: 6px 8px; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.dps-table td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.dps-table th:first-child, .dps-table td:first-child, .dps-table .l { text-align: left; }
+.dps-line td { font-size: var(--cds-font-size-body); }
+.dps-win { color: var(--color-ok); font-weight: 700; }
+.dps-loss { color: var(--color-bad); font-weight: 700; }
+.dps-herobar { display: inline-block; height: 6px; border-radius: 3px; background: var(--dps-red); opacity: .6; vertical-align: middle; margin-left: 6px; }
+.dps-board-wrap { max-height: 520px; overflow: auto; }
+.dps-board thead th { position: sticky; top: 0; background: var(--color-panel); z-index: 1; }
+.dps-board tbody tr { cursor: pointer; }
+.dps-board tbody tr:hover { background: color-mix(in srgb, var(--dps-blue) 8%, transparent); }
+.dps-board tbody tr.on { background: color-mix(in srgb, var(--dps-red) 12%, transparent); }
+.dps-sort { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.dps-sort:hover, .dps-sort:focus-visible { color: var(--color-fg); text-decoration: underline; }
+.dps-boardbar { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; justify-content: space-between; margin-bottom: var(--cds-gap-sm); }
+.dps-kpis.six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dps-kpi.hl b { color: var(--dps-red); }
+.dps-bar.hl .dps-bar-label { font-size: var(--cds-font-size-body); }
+.dps-bar.hl .dps-dot { width: 34px; height: 34px; margin-left: -17px; top: -3px; font-size: 13px; }
+.dps-split { height: 1px; background: var(--color-border-line); margin: 2px 0; }
+.dps-wt td.w { min-width: 70px; }
+.dps-wt .cell { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.dps-wt .cell i { display: inline-block; height: 8px; border-radius: 2px; background: var(--dps-red); opacity: .7; }
+.dps-wt .cell i.neg { background: var(--dps-blue); }
+.dps-wt tr.grp td { text-align: left; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); padding-top: 12px; }
+.dps-wt td.zero { color: var(--color-fg-muted); }
+.dps-mnote { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: var(--cds-gap-sm) 0 0; max-width: 80ch; }
+.dps-top5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--cds-gap-md); }
+@media (max-width: 1000px) { .dps-top5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .dps-top5 { grid-template-columns: minmax(0, 1fr); } }
+.dps-t5col { min-width: 0; }
+.dps-t5head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.dps-t5head b { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: var(--dps-red); color: #fff; font-family: var(--dps-display); font-weight: 400; font-size: 15px; }
+.dps-t5head span { font-weight: var(--cds-font-weight-medium); }
+.dps-t5list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; min-height: 150px; }
+.dps-t5row { display: grid; grid-template-columns: 1.2rem minmax(0, 1fr) auto; gap: 6px; align-items: center; width: 100%; font: inherit; text-align: left; color: var(--color-fg); background: none; border: 0; border-radius: 6px; padding: 5px 6px; cursor: pointer; }
+.dps-t5row:hover, .dps-t5row:focus-visible { background: color-mix(in srgb, var(--dps-blue) 10%, transparent); outline: none; }
+.dps-t5row.on { background: color-mix(in srgb, var(--dps-red) 12%, transparent); }
+.dps-t5rank { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.dps-t5name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dps-t5name small { display: block; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); overflow: hidden; text-overflow: ellipsis; }
+.dps-t5val { font-variant-numeric: tabular-nums; font-weight: var(--cds-font-weight-medium); }
+.dps-view { display: grid; gap: var(--cds-gap-lg); min-width: 0; }
+.dps-title { cursor: pointer; }
+.dps-back { justify-self: start; font: inherit; font-size: var(--cds-font-size-caption); padding: 6px 12px; border-radius: 999px; border: 1px solid var(--color-border-line); background: var(--color-panel); color: var(--color-fg); cursor: pointer; }
+.dps-back:hover, .dps-back:focus-visible { border-color: var(--dps-blue); outline: none; }
+.dps-tour td { vertical-align: top; }
+.dps-tour .tn { white-space: normal; min-width: 180px; }
+.dps-tour .tn small { display: block; color: var(--color-fg-muted); }
+.dps-tag { display: inline-block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-left: 6px; vertical-align: 1px; background: color-mix(in srgb, var(--dps-red) 16%, transparent); color: var(--color-fg); }
+.dps-live { background: color-mix(in srgb, var(--color-warn) 25%, transparent); }
+.dps-champ { font-weight: var(--cds-font-weight-medium); white-space: normal; }
+.dps-champ small { display: block; color: var(--color-fg-muted); font-weight: 400; }
+.dps-link { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--color-border-line); text-underline-offset: 3px; }
+.dps-link:hover, .dps-link:focus-visible { text-decoration-color: currentColor; outline: none; }
+.dps-mini { font: inherit; font-size: var(--cds-font-size-caption); padding: 3px 9px; border-radius: 999px; border: 1px solid var(--color-border-line); background: none; color: var(--color-fg); cursor: pointer; }
+.dps-mini:hover, .dps-mini:focus-visible { border-color: var(--dps-blue); outline: none; }
+.dps-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.dps-foot summary { cursor: pointer; color: var(--color-fg-muted); }
+.dps-foot p { max-width: 70ch; color: var(--color-fg-muted); }
+
+/* ---- Texture pass: scouting-sheet look. Condensed scoreboard type, grain on every surface,
+   graph-paper grid where numbers are plotted, hatching on position marks. ---- */
+.dps {
+  --dps-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --dps-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --dps-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --dps-gridline: color-mix(in srgb, var(--color-fg) 5%, transparent);
+  --dps-hatch: color-mix(in srgb, var(--color-fg) 7%, transparent);
+  --dps-ink: #16191d;
+  --dps-ink-fg: #ece7dc;
+  --dps-ink-muted: #a9a59c;
+  --cds-radius: 3px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dps { --dps-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); --dps-ink: #0c0e10; } }
+:root[data-theme="dark"] .dps { --dps-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); --dps-ink: #0c0e10; }
+
+/* Header: inked band with diagonal hatching and grain */
+.dps-head { background-color: var(--dps-ink); color: var(--dps-ink-fg);
+  background-image: var(--dps-grain), repeating-linear-gradient(-45deg, rgba(255,255,255,.035) 0 1px, transparent 1px 7px);
+  padding: 22px 24px 20px; border-radius: 3px; border-bottom: 4px solid var(--dps-red); }
+.dps-head .dps-sub { color: var(--dps-ink-muted); }
+.dps-head .dps-sub b { color: var(--dps-ink-fg); font-family: var(--dps-mono); font-weight: 500; }
+.dps-head .dps-lab { color: var(--dps-ink-muted); }
+.dps-head .dps-in { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.22); color: var(--dps-ink-fg); color-scheme: dark; }
+.dps-head .dps-in::placeholder { color: var(--dps-ink-muted); }
+.dps-title { font-weight: 700; text-transform: uppercase; letter-spacing: .02em; font-size: clamp(2rem, 1.4rem + 2.4vw, 3.1rem); line-height: .95; }
+
+/* Surfaces: grain on every card */
+.dps-card { background-image: var(--dps-grain); border-radius: 3px; }
+#top-xwin, #dates { background-image: var(--dps-grain),
+  linear-gradient(var(--dps-gridline) 1px, transparent 1px), linear-gradient(90deg, var(--dps-gridline) 1px, transparent 1px);
+  background-size: 180px 180px, 18px 18px, 18px 18px; }
+
+/* Type: condensed scoreboard headings, mono for labels and figures */
+.dps-h2 { font-family: var(--dps-display); font-weight: 700; text-transform: uppercase; letter-spacing: .03em; font-size: 1.45rem; line-height: 1.05;
+  padding-bottom: 8px; border-bottom: 2px solid var(--color-fg); margin-bottom: 12px; }
+.dps-h2 small { font-family: var(--font-anthropic-sans); text-transform: none; letter-spacing: 0; font-size: var(--cds-font-size-caption); margin-top: 4px; }
+.dps-lab, .dps-kpi span, .dps-table th, .dps-t5rank, .dps-val, .dps-scale, .dps-tag { font-family: var(--dps-mono); letter-spacing: .05em; }
+.dps-table th { text-transform: uppercase; font-size: 11px; }
+.dps-kpi b { font-weight: 600; font-size: 2rem; line-height: 1; }
+.dps-name { font-weight: 700; text-transform: uppercase; letter-spacing: .01em; font-size: clamp(2rem, 1.5rem + 2vw, 2.8rem); line-height: .95; }
+.dps-t5val, .dps-table td { font-family: var(--dps-mono); font-size: 12.5px; }
+.dps-table td.tn, .dps-table td.dps-champ, .dps-table td:first-child { font-family: var(--font-anthropic-sans); font-size: var(--cds-font-size-caption); }
+
+/* Position marks: hatched, square */
+.dps-posbadge, .dps-t5head b { border-radius: 2px;
+  background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.16) 0 2px, transparent 2px 6px); }
+.dps-posbadge b, .dps-t5head b { font-weight: 700; }
+.dps-t5head { border-bottom: 1px dashed var(--color-border-line); padding-bottom: 6px; }
+.dps-t5head span { font-family: var(--dps-display); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; font-size: 1.05rem; }
+
+/* Controls: squared tabs instead of pills */
+.dps-chip, .dps-back, .dps-mini, .dps-pill { border-radius: 2px; }
+.dps-chip { font-family: var(--dps-mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
+.dps-chip.on { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.14) 0 2px, transparent 2px 6px); }
+.dps-back { font-family: var(--dps-mono); text-transform: uppercase; letter-spacing: .05em; font-size: 11.5px; }
+
+/* Percentile track: ruler ticks every 10 points */
+.dps-track::before { height: 9px; top: 9px; background:
+  repeating-linear-gradient(90deg, var(--color-border-line) 0 1px, transparent 1px 10%) left / 100% 100% no-repeat,
+  linear-gradient(var(--color-border-line), var(--color-border-line)) left 4px / 100% 1px no-repeat; }
+.dps-track i { border-radius: 1px; }
+.dps-dot { font-family: var(--dps-mono); font-weight: 500; }
+.dps-bars { background-image: linear-gradient(90deg, transparent calc(50% - .5px), var(--dps-hatch) calc(50% - .5px), var(--dps-hatch) calc(50% + .5px), transparent calc(50% + .5px)); }
+
+/* Tables: hatched header band, faint ledger striping */
+.dps-table thead th { background-image: repeating-linear-gradient(-45deg, var(--dps-hatch) 0 1px, transparent 1px 5px); border-bottom: 2px solid var(--color-fg); }
+.dps-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--color-fg) 2.5%, transparent); }
+.dps-board thead th { background-color: var(--color-panel); }
+.dps-tag { border-radius: 2px; }
+.dps-foot summary { font-family: var(--dps-mono); text-transform: uppercase; letter-spacing: .05em; font-size: 11.5px; }
+
+/* ---- Top 5: each position is its own tile with an inked header ---- */
+.dps-top5 { gap: 14px; }
+.dps-t5col { background: var(--color-panel); background-image: var(--dps-grain); border: 1px solid color-mix(in srgb, var(--color-fg) 22%, transparent);
+  border-radius: 3px; box-shadow: 4px 4px 0 color-mix(in srgb, var(--color-fg) 13%, transparent); overflow: hidden; }
+.dps-t5head { margin: 0; padding: 8px 10px; border-bottom: 0; background-color: var(--dps-ink); color: var(--dps-ink-fg);
+  background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.05) 0 1px, transparent 1px 6px); }
+.dps-t5head b { box-shadow: 0 0 0 2px rgba(255,255,255,.12); }
+.dps-t5list { padding: 6px; }
+.dps-t5list li:first-child .dps-t5row { background: color-mix(in srgb, var(--dps-red) 10%, transparent); }
+.dps-t5list li:first-child .dps-t5name { font-weight: 700; }
+.dps-t5list li:first-child .dps-t5val { color: var(--dps-red); font-weight: 600; font-size: 14px; }
+.dps-t5list li + li .dps-t5row { border-top: 1px dashed color-mix(in srgb, var(--color-fg) 12%, transparent); border-radius: 0; }
+.dps-t5row:hover, .dps-t5row:focus-visible { box-shadow: inset 3px 0 0 var(--dps-blue); }
+
+/* ---- Player card: faded portrait of their most-played hero ---- */
+.dps-biowrap { position: relative; isolation: isolate; overflow: hidden; background: var(--color-panel); background-image: var(--dps-grain);
+  border: 1px solid var(--color-border-line); border-radius: 3px; min-width: 0; }
+.dps-biowrap > .dps-bio { position: relative; z-index: 1; background: none; border: 0; }
+.dps-heroart { position: absolute; z-index: 0; top: 0; right: 0; bottom: 0; aspect-ratio: 16 / 9; max-width: 100%;
+  background-repeat: no-repeat;
+  opacity: var(--dps-art-op); filter: saturate(.85);
+  -webkit-mask-image: linear-gradient(to left, #000 35%, transparent 95%); mask-image: linear-gradient(to left, #000 35%, transparent 95%); }
+.dps-heroart span { position: absolute; right: 10px; bottom: 8px; font-family: var(--dps-mono); font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--color-fg); opacity: .9; }
+.dps { --dps-art-op: .2; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dps { --dps-art-op: .26; } }
+:root[data-theme="dark"] .dps { --dps-art-op: .26; }
+
+/* ---- Top 5: pixel-art icon of each player's most-played hero ---- */
+.dps-t5row { grid-template-columns: 1.1rem 32px minmax(0, 1fr) auto; gap: 8px; }
+.dps-pix { width: 32px; height: 32px; display: block; image-rendering: pixelated; image-rendering: crisp-edges;
+  background-repeat: no-repeat;
+  box-shadow: 0 0 0 2px var(--dps-ink), 2px 2px 0 2px color-mix(in srgb, var(--color-fg) 18%, transparent); }
+.dps-pix.none { background: repeating-linear-gradient(135deg, var(--dps-hatch) 0 2px, transparent 2px 5px); }
+.dps-t5list li:first-child .dps-pix { box-shadow: 0 0 0 2px var(--dps-red), 2px 2px 0 2px color-mix(in srgb, var(--color-fg) 18%, transparent); }
+
+/* ---- Filters, position switch, compare, trend, hero and team pages ---- */
+.dps-filterline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.dps-filterline > .dps-lab { min-width: 6.5rem; }
+.dps-posswitch { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: var(--cds-gap-sm); }
+.dps-posswitch .dps-lab { margin-right: 4px; }
+.dps-tags { margin-top: 6px; }
+.dps-tag.dps-small { background: color-mix(in srgb, var(--color-warn) 28%, transparent); margin-left: 0; }
+.dps-ss { color: var(--color-warn); font-family: var(--dps-mono); font-size: 10.5px; letter-spacing: .04em; }
+.dps-se { display: block; font-family: var(--dps-mono); font-size: 11px; color: var(--color-fg-muted); margin-top: 2px; cursor: help; }
+.dps-share { font-style: italic; }
+.dps-tipped { cursor: help; text-decoration: underline dotted color-mix(in srgb, var(--color-fg) 35%, transparent); text-underline-offset: 3px; }
+th[data-tip] { cursor: help; }
+.dps-ring { position: absolute; top: 2px; width: 24px; height: 24px; margin-left: -12px; border-radius: 50%; border: 2.5px solid var(--color-fg); background: var(--color-panel); box-sizing: border-box; z-index: 1; cursor: help; }
+.dps-cmphead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 8px; font-size: var(--cds-font-size-caption); }
+.dps-cmphead .dps-mini { margin-left: auto; }
+.dps-cmpkey { font-weight: 700; }
+.dps-cmpkey.a::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--dps-red); margin-right: 6px; }
+.dps-cmpkey.b::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; border: 2px solid var(--color-fg); margin-right: 6px; }
+.dps-cmptable td.dps-better { font-weight: 700; }
+.dps-cmpbody .dps-meta { margin: 10px 0 0; }
+#compare .dps-field { max-width: 320px; }
+.dps-trend { width: 100%; height: auto; display: block; }
+.dps-trend .grid { stroke: var(--dps-gridline); stroke-width: 1; }
+.dps-trend .base { stroke: var(--color-fg-muted); stroke-width: 1; stroke-dasharray: 4 4; }
+.dps-trend .tick { fill: var(--color-fg-muted); font-family: var(--dps-mono); font-size: 10.5px; }
+.dps-trend path { fill: none; stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+.dps-trend path.xw { stroke: var(--dps-red); }
+.dps-trend path.win { stroke: var(--color-fg-muted); stroke-width: 1.5; stroke-dasharray: 2 3; }
+.dps-trend path.cmp { stroke: var(--color-fg); stroke-width: 1.5; opacity: .7; }
+.dps-trend .end { fill: var(--dps-red); stroke: var(--color-panel); stroke-width: 2; }
+.dps-trendkey { display: flex; flex-wrap: wrap; gap: 14px; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin-top: 4px; }
+.dps-trendkey .k::before { content: ""; display: inline-block; width: 18px; height: 0; border-top: 2.5px solid var(--dps-red); vertical-align: 3px; margin-right: 6px; }
+.dps-trendkey .k.win::before { border-top: 2px dotted var(--color-fg-muted); }
+.dps-trendkey .k.cmp::before { border-top: 2px solid var(--color-fg); }
+.dps-table td.dps-herocell { display: flex; align-items: center; gap: 8px; text-align: left; }
+.dps-table .dps-pix { width: 22px; height: 22px; flex: none; box-shadow: 0 0 0 1.5px var(--dps-ink); }
+.dps-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cds-gap-lg); align-items: start; }
+@media (max-width: 960px) { .dps-two { grid-template-columns: minmax(0, 1fr); } }
+.dps-pos { color: var(--color-ok); font-weight: 600; }
+.dps-neg { color: var(--color-bad); font-weight: 600; }
+.dps-empty { color: var(--color-fg-muted); white-space: normal; }
+.dps-banner { position: relative; overflow: hidden; isolation: isolate; min-height: 170px; }
+.dps-banart { position: absolute; top: 0; right: 0; bottom: 0; z-index: 0; aspect-ratio: 16 / 9; max-width: 100%; opacity: var(--dps-art-op); background-repeat: no-repeat;
+  -webkit-mask-image: linear-gradient(to left, #000 40%, transparent 95%); mask-image: linear-gradient(to left, #000 40%, transparent 95%); }
+.dps-baninner { position: relative; z-index: 1; display: grid; gap: var(--cds-gap-md); }
+.dps-banpix { flex: none; width: 64px; height: 64px; image-rendering: pixelated; image-rendering: crisp-edges; background-repeat: no-repeat;
+  box-shadow: 0 0 0 3px var(--dps-ink), 4px 4px 0 3px color-mix(in srgb, var(--color-fg) 18%, transparent); }
+.dps-pcells { white-space: nowrap; }
+.dps-table td.dps-pcells { text-align: left; }
+.dps-pdot { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: #fff; font-family: var(--dps-mono); font-size: 10.5px; margin-right: 4px; }
+.dps-pdot.none { background: var(--dps-hatch); color: var(--color-fg-muted); }
+
+
+/* ---- Movers, event pages, phone layout ---- */
+.dps-toprow { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--cds-gap-lg); align-items: stretch; }
+@media (max-width: 1000px) { .dps-toprow { grid-template-columns: minmax(0, 1fr); } }
+.dps-moverscols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 420px) { .dps-moverscols { grid-template-columns: minmax(0, 1fr); } }
+.dps-moverlist { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
+.dps-mover { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; font: inherit; text-align: left; color: var(--color-fg); background: none; border: 0; border-radius: 3px; padding: 4px; cursor: pointer; }
+.dps-mover:hover, .dps-mover:focus-visible { background: color-mix(in srgb, var(--dps-blue) 10%, transparent); outline: none; }
+.dps-delta { font-family: var(--dps-mono); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+.dps-delta.up, .dps-lab.dps-up { color: var(--color-ok); }
+.dps-delta.down, .dps-lab.dps-down { color: var(--color-bad); }
+@media (prefers-reduced-motion: no-preference) { .dps-mover:hover .dps-pix, .dps-mover:focus-visible .dps-pix { animation: dps-hop .45s steps(3) infinite alternate; } }
+.dps-ext::after { content: " \2197"; font-size: .85em; }
+#event-card .dps-kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+#event-card .dps-kpi b { font-size: 1.35rem; }
+#event-card .dps-mini { justify-self: start; margin-top: 8px; }
+#event-card { display: grid; gap: 4px; }
+
+/* Phones: tighter cards, two KPIs per row, labels above their chips */
+@media (max-width: 600px) {
+  .dps-card { padding: 14px; }
+  .dps-head { padding: 16px; }
+  .dps-search { max-width: none; flex-basis: 100%; }
+  .dps-filterline { display: grid; gap: 6px; }
+  .dps-filterline > .dps-lab { min-width: 0; }
+  .dps-kpis.six, .dps-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dps-kpi b { font-size: 1.6rem; }
+  .dps-namerow { align-items: flex-start; }
+  .dps-posbadge { width: 52px; height: 52px; }
+  .dps-posbadge b { font-size: 24px; }
+  .dps-h2 { font-size: 1.25rem; }
+  .dps-top5 { gap: 10px; }
+  .dps-bar, .dps-scale { grid-template-columns: 6rem minmax(0, 1fr) 3.4rem; gap: 6px; }
+  .dps-bar-label { font-size: 11px; }
+  .dps-tour .tn { min-width: 150px; }
+  .dps-heroart, .dps-banart { opacity: calc(var(--dps-art-op) * .7); }
+}
+
+/* ---- 8-bit hero sprites: transparent, outlined, no frame; they hop when you point at them ---- */
+.dps-pix, .dps-table .dps-pix, .dps-t5list li:first-child .dps-pix, .dps-banpix { box-shadow: none; background-color: transparent;
+  filter: drop-shadow(2px 2px 0 color-mix(in srgb, var(--color-fg) 22%, transparent)); }
+.dps-table .dps-pix { width: 32px; height: 32px; }
+.dps-pix.none { filter: none; background: none; }
+.dps-t5list li:first-child .dps-pix { filter: drop-shadow(2px 2px 0 color-mix(in srgb, var(--dps-red) 55%, transparent)); }
+@keyframes dps-hop { 0% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-3px) rotate(-8deg); } 100% { transform: translateY(0) rotate(6deg); } }
+@media (prefers-reduced-motion: no-preference) {
+  .dps-t5row:hover .dps-pix, .dps-t5row:focus-visible .dps-pix, .dps-herocell:hover .dps-pix { animation: dps-hop .45s steps(3) infinite alternate; }
+  .dps-banpix { animation: dps-hop 1.2s steps(3) infinite alternate; }
+}
+
+/* Keep visually hidden labels inside their scroll box so they can't widen the page */
+.dps-tablewrap { position: relative; }
+.dps-sr { left: 0; top: 0; white-space: nowrap; }
+
+.dps-view[hidden] { display: none; }
+</style>
+
+<div class="dps">
+  <header class="dps-head" id="top">
+    <div>
+      <h1 class="dps-title">Dota Pro Savant</h1>
+      <p class="dps-sub"><b data-draw="w-pros" data-source="window" data-field="pros" data-row="0">—</b> pros with enough games across <b data-draw="w-matches" data-source="window" data-field="matches" data-row="0">—</b> pro matches <span data-draw="w-opp" data-source="window">—</span>, <span data-draw="w-range" data-source="window">—</span>. Percentiles compare each player only to others in the same position.</p>
+    </div>
+    <div class="dps-search">
+      <label class="dps-lab" for="dps-q">Search player, team or hero</label>
+      <input class="dps-in" id="dps-q" type="search" list="dps-names" placeholder="e.g. Yatoro, Team Spirit, Invoker" autocomplete="off">
+      <datalist id="dps-names" data-draw="names" data-source="stats teamagg heroart"></datalist>
+      <div class="dps-msg" data-draw="search-msg"></div>
+    </div>
+  </header>
+
+  <div class="dps-toprow">
+  <section class="dps-card dps-filter" id="dates">
+    <div class="dps-filterline"><span class="dps-lab">Opponents</span><div class="dps-presets" data-draw="opp-chips" data-source="window" aria-label="Opponent strength"></div></div>
+    <div class="dps-filterline"><span class="dps-lab">Dates</span><div class="dps-presets" data-draw="presets" data-source="events" aria-label="Date presets"></div></div>
+    <div class="dps-filterline"><span class="dps-lab">Patch</span><div class="dps-presets" data-draw="patch-chips" data-source="patches" aria-label="Game patch"></div></div>
+    <div class="dps-filter-row">
+      <div class="dps-field"><label class="dps-lab" for="dps-from">From</label><input class="dps-in" id="dps-from" type="date" data-draw="from-in" data-source="scope"></div>
+      <div class="dps-field"><label class="dps-lab" for="dps-to">To</label><input class="dps-in" id="dps-to" type="date" data-draw="to-in" data-source="scope"></div>
+      <div class="dps-field"><label class="dps-lab" for="dps-min">Min. games</label>
+        <select class="dash-select" id="dps-min" aria-label="Minimum games in range">
+          <option value="5">5+</option><option value="10">10+</option><option value="15">15+</option><option value="25">25+</option><option value="50">50+</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="dps-card" id="movers">
+    <h2 class="dps-h2">Movers<small data-draw="movers-sub" data-source="movers">—</small></h2>
+    <div class="dps-moverscols">
+      <div><div class="dps-lab dps-up">Risers</div><ol class="dps-moverlist" data-draw="risers" data-source="movers"></ol></div>
+      <div><div class="dps-lab dps-down">Fallers</div><ol class="dps-moverlist" data-draw="fallers" data-source="movers"></ol></div>
+    </div>
+  </section>
+  </div>
+
+  <div class="dps-view" id="home">
+  <section class="dps-card" id="top-xwin">
+    <h2 class="dps-h2">Top 5 xWin % by position<small>Established players only: it must be their main position, with 30+ games there in the selected dates and opponents. Click a player to open their page.</small></h2>
+    <div class="dps-top5">
+      <div class="dps-t5col"><div class="dps-t5head"><b>1</b><span>Carry</span></div><ol class="dps-t5list" data-draw="top5" data-pos="1" data-source="stats"></ol></div>
+      <div class="dps-t5col"><div class="dps-t5head"><b>2</b><span>Mid</span></div><ol class="dps-t5list" data-draw="top5" data-pos="2" data-source="stats"></ol></div>
+      <div class="dps-t5col"><div class="dps-t5head"><b>3</b><span>Offlane</span></div><ol class="dps-t5list" data-draw="top5" data-pos="3" data-source="stats"></ol></div>
+      <div class="dps-t5col"><div class="dps-t5head"><b>4</b><span>Soft support</span></div><ol class="dps-t5list" data-draw="top5" data-pos="4" data-source="stats"></ol></div>
+      <div class="dps-t5col"><div class="dps-t5head"><b>5</b><span>Hard support</span></div><ol class="dps-t5list" data-draw="top5" data-pos="5" data-source="stats"></ol></div>
+    </div>
+  </section>
+
+  <section class="dps-card" id="tournaments">
+    <h2 class="dps-h2">Recent tournament results<small data-draw="tour-sub" data-source="tournaments">—</small></h2>
+    <div class="dps-tablewrap">
+      <table class="dps-table dps-tour" data-source="tournaments" data-row-key="league">
+        <thead><tr>
+          <th data-field="name">Tournament</th>
+          <th data-field="end" class="l">Dates</th>
+          <th data-field="champion" class="l">Champion</th>
+          <th data-field="series_score" class="l">Final</th>
+          <th data-field="mvp_name" class="l">Event xWin leader</th>
+          <th data-field="mvp_xwin">xWin %</th>
+          <th class="l"><span class="dps-sr">Filter</span></th>
+        </tr></thead>
+        <tbody data-draw="tournaments"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dps-card" id="leaderboard">
+    <div class="dps-boardbar">
+      <h2 class="dps-h2" style="margin:0">Leaderboard<small>Sorted by Wins Above Average (WAA) for the selected dates and opponents. One row per player at their main position; pick a position to see everyone who qualifies there. SS = small sample (under 30 games). Click a column to sort, click a row to open that player.</small></h2>
+      <select class="dash-select" id="dps-posf" aria-label="Filter by position">
+        <option value="">All positions</option>
+        <option value="1">Pos 1 · Carry</option>
+        <option value="2">Pos 2 · Mid</option>
+        <option value="3">Pos 3 · Offlane</option>
+        <option value="4">Pos 4 · Soft support</option>
+        <option value="5">Pos 5 · Hard support</option>
+      </select>
+    </div>
+    <div class="dps-tablewrap dps-board-wrap">
+      <table class="dps-table dps-board" id="dps-board" data-source="stats" data-row-key="id">
+        <thead><tr>
+          <th data-field="name"><button class="dps-sort" data-k="name">Player</button></th>
+          <th data-field="team" class="l"><button class="dps-sort" data-k="team">Team</button></th>
+          <th data-field="role" class="l"><button class="dps-sort" data-k="pos">Position</button></th>
+          <th data-field="games"><button class="dps-sort" data-k="games">Games</button></th>
+          <th data-field="xwin" data-tip="xwin"><button class="dps-sort" data-k="xwin">xWin %</button></th>
+          <th data-field="waa" data-tip="waa"><button class="dps-sort" data-k="waa">WAA</button></th>
+          <th data-field="winrate" data-tip="winrate"><button class="dps-sort" data-k="winrate">Win %</button></th>
+          <th data-field="kda" data-tip="kda"><button class="dps-sort" data-k="kda">KDA</button></th>
+          <th data-field="gpm" data-tip="gpm"><button class="dps-sort" data-k="gpm">GPM</button></th>
+          <th data-field="xpm" data-tip="xpm"><button class="dps-sort" data-k="xpm">XPM</button></th>
+          <th data-field="dmg_min" data-tip="dmg_min"><button class="dps-sort" data-k="dmg_min">Dmg/min</button></th>
+          <th data-field="wards" data-tip="wards"><button class="dps-sort" data-k="wards">Wards</button></th>
+        </tr></thead>
+        <tbody data-draw="board"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="dps-two">
+  <section class="dps-card" id="teams-home">
+    <h2 class="dps-h2">Teams<small>Top 20 by current Elo with 5+ games in these dates and opponents. Team xWin is the average xWin of the team’s pros; Win − xWin shows teams winning more or less than their play suggests. Click a team to open it.</small></h2>
+    <div class="dps-tablewrap">
+      <table class="dps-table" data-source="teamagg" data-row-key="team">
+        <thead><tr><th data-field="name">Team</th><th data-field="elo" title="Elo rating now. Every team starts at 1500 and gains or loses points with each counted game.">Elo</th><th data-field="wins">Record</th><th data-field="winrate">Win %</th><th data-field="xwin">Team xWin</th><th data-field="gap">Win − xWin</th><th data-field="last" class="l">Last game</th></tr></thead>
+        <tbody data-draw="teams-home"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dps-card" id="heroes-home">
+    <h2 class="dps-h2">Heroes<small>The 15 most-picked heroes by listed pros in these dates and opponents, with the best pro on each by xWin (5+ games). Click a hero to open it.</small></h2>
+    <div class="dps-tablewrap">
+      <table class="dps-table" data-source="heroagg" data-row-key="hero">
+        <thead><tr><th data-field="name">Hero</th><th data-field="pos" class="l">Usually</th><th data-field="games">Games</th><th data-field="pick" title="Games on this hero divided by matches in range with a listed pro.">Pick %</th><th data-field="winrate">Win %</th><th data-field="best_name" class="l">Best by xWin</th></tr></thead>
+        <tbody data-draw="heroes-home"></tbody>
+      </table>
+    </div>
+  </section>
+  </div>
+
+  <section class="dps-card" id="model">
+    <h2 class="dps-h2">What drives xWin at each position<small>Fitted on every counted pro game since TI 2025, after the hero and opponent adjustments. Longer bars mean the stat matters more for winning at that position.</small></h2>
+    <div class="dps-tablewrap">
+      <table class="dps-table dps-wt">
+        <thead><tr><th>Stat</th><th>Pos 1</th><th>Pos 2</th><th>Pos 3</th><th>Pos 4</th><th>Pos 5</th></tr></thead>
+        <tbody data-draw="weights" data-source="model"></tbody>
+      </table>
+    </div>
+    <p class="dps-mnote" data-draw="m-mode" data-source="scope">—</p>
+    <p class="dps-mnote">Each number is how much one standard deviation of that stat moves a player's odds of winning. Zero means the stat added nothing once the others were known. Each stat may only count in its sensible direction, so a support can't earn credit by dying more while their cores do well.</p>
+  </section>
+
+  <details class="dps-foot" id="notes">
+    <summary>How these numbers are worked out</summary>
+    <p>The data holds every OpenDota-tracked game in leagues rated premium or professional, from the first day of The International 2025 to the latest refresh. OpenDota also marks some non-events as professional, so <span data-draw="n-leagues" data-source="scope">—</span> leagues are dropped (open ladders and club leagues running longer than 150 days, in-house leagues with fewer than 4 teams or mostly unregistered teams, and streamer shows), along with single games where either side isn’t a registered team. That removes <span data-draw="n-dropped" data-source="scope">—</span> games. Every stat, position and percentile on the page is recomputed from single matches for the dates and opponents you pick.</p>
+    <p><b>Opponents.</b> A team counts as Tier 1 for a game if it played 5+ games at Tier 1 main events (TI, DreamLeague, PGL Wallachia, ESL One, BLAST SLAM, FISSURE PLAYGROUND, Esports World Cup; never qualifiers) within six months of that game. <span data-draw="n-t1" data-source="scope">—</span> teams are Tier 1 right now. Tier 2 adds registered teams rated 1500+ Elo going into the game; All adds everyone else. The default shows only games against Tier 1 teams.</p>
+    <p><b>Positions.</b> A player gets a separate stat line for every position where they reach the minimum games, using only those games, so percentiles always compare like with like. Their main position is the qualifying one they played most. Players who split positions get a switch on their page.</p>
+    <p>Position comes from the lane first. OpenDota records which lane each player spent the early game in. On each team, a lone mid laner is Pos 2; in the safe lane the richer of the two players is Pos 1 and the other Pos 5; in the off lane the richer is Pos 3 and the other Pos 4. That covers <span data-draw="n-lane" data-source="scope">—</span>% of pro games. The rest (unparsed games, trilanes, jungle and roaming setups) fall back to the hero, then gold: <span data-draw="n-single" data-source="scope">—</span> heroes are played in one position <span data-draw="n-share" data-source="scope" data-field="hero_share" data-row="0">—</span>%+ of the time and claim it; everyone else fills the open positions by gold per minute, richest first. The other <span data-draw="n-multi" data-source="scope" data-field="heroes_multi" data-row="0">—</span> heroes are multi-position.</p>
+    <p><b>xWin %</b> works like xwOBA. One model per position predicts whether a player's team wins from that player's own match: their gold, XP, last-hit and deny lead over the opposing player in the same position at 10:00, plus whole-game contribution measured as a share of their own team (gold, hero damage, tower damage, healing, kill participation, deaths) and stuns, wards and stacks per minute. Shares of the player's own team are used instead of raw totals because the winning team farms more, so raw totals would mostly measure who won. xWin % is the average prediction over the selected dates. Two adjustments come first. The 10:00 lane numbers are measured against what that hero usually does in that position, so a roaming support or a hero that always gives up lane isn’t marked down for it. Then every stat is adjusted for the opponent’s Elo going into the game, so the same lead counts for more against a stronger team. The ± beside xWin % on a player page is its standard error: with fewer games, the true value could be further off.</p>
+    <p><b>Small samples.</b> A player’s xWin % and lane xWin % are pulled toward their position’s average, as if they had also played a set number of perfectly average games: about 20–40, measured each week from how much one player’s games vary compared with how much players truly differ. With 20 games, a raw 66% might show as about 60%; with 100 games it barely moves. Player pages show the raw figure under the big number. WAA uses the raw figures, since a short sample already earns less of it.</p>
+    <p><b>Lane xWin %</b> uses only the 10:00 numbers, so it rates the early game. <b>Wins Above Average (WAA)</b> adds up, over every game, the player's xWin minus the average xWin for their position in the selected dates. A typical player at the position scores 0. Like WAR, it counts: playing more games well adds up. The model separates good and bad support play less sharply than core play, so WAA spreads wider for cores. Compare WAA within a position.</p>
+    <p>On games it never saw (<span data-draw="m-from">—</span> onward) the model's AUC is <span data-draw="m-auc" data-source="scope" data-field="xwin_auc" data-row="0">—</span>, where 0.5 is a coin flip and 1.0 is perfect. Lane-only AUC is <span data-draw="m-lane" data-source="scope" data-field="lane_auc" data-row="0">—</span>. Splitting each player's games into alternating halves, xWin % in one half matches the other at r = <span data-draw="m-repx" data-source="scope" data-field="rep_xwin" data-row="0">—</span>, against r = <span data-draw="m-repw" data-source="scope" data-field="rep_win" data-row="0">—</span> for actual win %, so xWin tracks the player more than their team's results do.</p>
+    <p>Percentiles rank a player against everyone with the same position in the selected dates, from 1 (worst) to 100 (best). Deaths are reversed, so fewer deaths gives a higher percentile. Each position shows the stats that matter most for it. Fewer than 30 games is marked as a small sample.</p>
+    <p><b>Refresh history.</b> The data and model are rebuilt every Monday. Each run is logged here, and its model weights are archived alongside the refresh script.</p>
+    <div class="dps-tablewrap">
+      <table class="dps-table" data-source="refreshlog" data-row-key="run">
+        <thead><tr><th data-field="run">Run</th><th data-field="matches">Games kept</th><th data-field="matches_dropped">Dropped</th><th data-field="xwin_auc">xWin AUC</th><th data-field="rep_xwin">Repeatability</th><th data-field="tier1_teams">Tier 1 teams</th></tr></thead>
+        <tbody data-draw="refreshlog" data-source="refreshlog"></tbody>
+      </table>
+    </div>
+  </details>
+  </div>
+
+  <div class="dps-view" id="player-view" hidden>
+    <button class="dps-back" id="dps-back" data-back type="button">&larr; Back to home</button>
+  <div class="dps-grid">
+      <div class="dps-col">
+        <div class="dps-biowrap"><div class="dps-heroart" data-draw="heroart" data-source="herostats"></div><section class="dps-card dps-bio" id="player" data-draw="card" data-source="stats"></section></div>
+
+        <section class="dps-card" id="percentiles">
+          <h2 class="dps-h2">Percentile rankings<small data-draw="bars-sub">—</small></h2>
+          <div class="dps-bars" data-draw="bars" data-source="stats pctl"></div>
+          <div class="dps-scale"><span></span><div><span>Poor</span><span><span class="dps-legend"></span></span><span>Great</span></div><span></span></div>
+        </section>
+
+        <section class="dps-card" id="compare">
+          <h2 class="dps-h2">Compare<small>Overlay another pro on the percentile bars and the trend chart.</small></h2>
+          <div class="dps-field"><label class="dps-lab" for="dps-cmp">Compare with</label>
+            <input class="dps-in" id="dps-cmp" type="search" list="dps-pnames" placeholder="Type a player name" autocomplete="off"></div>
+          <datalist id="dps-pnames" data-draw="pnames" data-source="stats"></datalist>
+          <div class="dps-cmpbody" data-draw="cmp" data-source="stats pctl"></div>
+        </section>
+      </div>
+
+      <div class="dps-col">
+        <section class="dps-card" id="trend">
+          <h2 class="dps-h2">xWin over time<small data-draw="trend-sub" data-source="stats">—</small></h2>
+          <div data-draw="trend" data-source="pm stats"></div>
+        </section>
+
+        <section class="dps-card" id="statline">
+          <h2 class="dps-h2">Per-game stat line<small>Averages per match in the selected dates. Damage and last hits are per minute.</small></h2>
+          <div class="dps-tablewrap">
+            <table class="dps-table dps-line" data-source="stats" data-row-key="id">
+              <thead><tr>
+                <th data-field="xwin">xWin %</th><th data-field="xlane" data-tip="xlane">Lane xWin %</th><th data-field="kills">K</th><th data-field="deaths">D</th><th data-field="assists">A</th><th data-field="kda" data-tip="kda">KDA</th>
+                <th data-field="gpm">GPM</th><th data-field="xpm" data-tip="xpm">XPM</th><th data-field="lh_min" data-tip="lh_min">LH/min</th><th data-field="denies">DN</th>
+                <th data-field="dmg_min" data-tip="dmg_min">Dmg/min</th><th data-field="tower_dmg" data-tip="tower_dmg">Tower dmg</th><th data-field="healing" data-tip="healing">Healing</th>
+                <th data-field="stuns">Stun s</th><th data-field="teamfight" data-tip="teamfight">TF %</th><th data-field="wards" data-tip="wards">Wards</th><th data-field="stacks" data-tip="stacks">Stacks</th><th data-field="hero_pool" data-tip="hero_pool">Heroes</th>
+              </tr></thead>
+              <tbody data-draw="line"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="dps-card" id="heroes">
+          <h2 class="dps-h2">Signature heroes<small>Most-played heroes at this position in the selected dates and opponents, up to eight. Click a hero to open it.</small></h2>
+          <div class="dps-tablewrap">
+            <table class="dps-table" data-source="herostats" data-row-key="id,hero">
+              <thead><tr><th data-field="name">Hero</th><th data-field="usual_pos" class="l">Hero's usual pos</th><th data-field="games">Games</th><th data-field="wins">Wins</th><th data-field="winrate">Win %</th></tr></thead>
+              <tbody data-draw="heroes"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="dps-card" id="recent">
+          <h2 class="dps-h2">Last 10 pro matches<small>Most recent games inside the selected dates and opponents, any position. T1 = Tier 1 opponent. Click a date to open the match on OpenDota.</small></h2>
+          <div class="dps-tablewrap">
+            <table class="dps-table" data-source="pm" data-row-key="id,match_id">
+              <thead><tr><th data-field="date">Date</th><th data-field="league" class="l">League</th><th data-field="hero" class="l">Hero</th><th data-field="opp" class="l">Opponent</th><th data-field="pos">Pos</th><th data-field="win">W/L</th><th data-field="k">K/D/A</th><th data-field="xwin" title="The model's win chance from this game's stats.">xWin</th></tr></thead>
+              <tbody data-draw="recent"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="dps-view" id="event-view" hidden>
+    <button class="dps-back" data-back type="button">&larr; Back to home</button>
+    <section class="dps-card" id="event-card" data-draw="ev-head" data-source="tournaments"></section>
+    <div class="dps-two">
+      <section class="dps-card">
+        <h2 class="dps-h2">Teams<small>Match record and team xWin at this event, most wins first.</small></h2>
+        <div class="dps-tablewrap">
+          <table class="dps-table" data-source="pm" data-row-key="team">
+            <thead><tr><th data-field="team">Team</th><th data-field="win">Record</th><th data-field="winrate">Win %</th><th data-field="xwin">Team xWin</th></tr></thead>
+            <tbody data-draw="ev-teams" data-source="pm"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="dps-card">
+        <h2 class="dps-h2">Players<small>Every pro with 3+ games at this event, by average xWin. The sprite is their most-played hero there.</small></h2>
+        <div class="dps-tablewrap">
+          <table class="dps-table" data-source="pm" data-row-key="id">
+            <thead><tr><th data-field="id">Player</th><th data-field="team" class="l">Team</th><th data-field="pos">Pos</th><th data-field="games">Games</th><th data-field="win">Win %</th><th data-field="xwin">xWin %</th></tr></thead>
+            <tbody data-draw="ev-players" data-source="pm"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="dps-view" id="hero-view" hidden>
+    <button class="dps-back" data-back type="button">&larr; Back to home</button>
+    <section class="dps-card dps-banner" id="hero-card" data-draw="hero-head" data-source="heroagg"></section>
+    <section class="dps-card">
+      <h2 class="dps-h2">Best pros on this hero<small>By average xWin with 3+ games on it, in these dates and opponents. SS = under 10 games. Click a player to open them.</small></h2>
+      <div class="dps-tablewrap">
+        <table class="dps-table" data-source="pm" data-row-key="id">
+          <thead><tr><th data-field="id">Player</th><th data-field="team" class="l">Team</th><th data-field="pos">Pos</th><th data-field="games">Games</th><th data-field="win">Win %</th><th data-field="xwin">xWin %</th></tr></thead>
+          <tbody data-draw="hero-players" data-source="pm"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="dps-view" id="team-view" hidden>
+    <button class="dps-back" data-back type="button">&larr; Back to home</button>
+    <section class="dps-card" id="team-card" data-draw="team-head" data-source="teamagg"></section>
+    <div class="dps-two">
+      <section class="dps-card">
+        <h2 class="dps-h2">Roster<small>Pros with 3+ games for this team in these dates and opponents. Dots are percentiles vs their position: xWin, lane xWin, WAA.</small></h2>
+        <div class="dps-tablewrap">
+          <table class="dps-table" data-source="pm" data-row-key="id">
+            <thead><tr><th data-field="id">Player</th><th data-field="pos">Pos</th><th data-field="games">Games</th><th data-field="win">Win %</th><th data-field="xwin">xWin %</th><th data-field="xlane">Lane xWin</th><th class="l">Percentiles</th></tr></thead>
+            <tbody data-draw="team-roster" data-source="pm pctl"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="dps-card">
+        <h2 class="dps-h2">Recent games<small>Last 15 in these dates and opponents. Opp. Elo is the opponent’s rating going into the game; xWin is the team’s average for that game. Click a date to open the match on OpenDota.</small></h2>
+        <div class="dps-tablewrap">
+          <table class="dps-table" data-source="pm" data-row-key="match_id">
+            <thead><tr><th data-field="date">Date</th><th data-field="league" class="l">League</th><th data-field="opp" class="l">Opponent</th><th data-field="opp_elo">Opp. Elo</th><th data-field="win">W/L</th><th data-field="xwin">xWin</th></tr></thead>
+            <tbody data-draw="team-recent" data-source="pm"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+window.DPS = window.DPS || { sel: null, selPos: null, cmp: null, sort: { k: 'waa', dir: -1 }, pos: '' };
+if (!window.DPS.sortTouched) window.DPS.sort = { k: 'waa', dir: -1 };
+window.DPS.POS = { 1: 'Carry', 2: 'Mid', 3: 'Offlane', 4: 'Soft support', 5: 'Hard support' };
+window.DPS.SMALL = 30;
+window.DPS.OPP = { 1: 'Tier 1 teams', 2: 'Tier 1 + Tier 2', 3: 'All pro teams' };
+window.DPS.STAT = {
+  xwin:      { label: 'xWin %',              f: (v) => d3.format('.1f')(v) + '%', d: 'Expected win rate from this player’s own stats, adjusted for their hero and the opponent’s strength. Like xwOBA: what their play was worth, whatever their team did. Small samples are pulled toward the position average.' },
+  xlane:     { label: 'Lane xWin % (10:00)', f: (v) => d3.format('.1f')(v) + '%', d: 'The same model using only the 10:00 lane numbers (gold, XP and last-hit lead over the opposing player in the same position, plus denies), measured against what that hero usually does in lane.' },
+  waa:       { label: 'Wins Above Avg.',     f: d3.format('+.1f'), d: 'Wins Above Average: over every game, xWin minus the average xWin for the position, added up. 0 is a typical player at the position. More good games add up, like WAR.' },
+  winrate:   { label: 'Win rate',        f: (v) => d3.format('.1f')(v) + '%', d: 'Share of games won.' },
+  kda:       { label: 'KDA',             f: d3.format('.2f'), d: '(Average kills + average assists) ÷ average deaths, with deaths counted as at least 1.' },
+  kills:     { label: 'Kills',           f: d3.format('.1f'), d: 'Average kills per game.' },
+  deaths:    { label: 'Deaths',          f: d3.format('.1f'), d: 'Average deaths per game. The percentile is reversed: fewer deaths ranks higher.' },
+  assists:   { label: 'Assists',         f: d3.format('.1f'), d: 'Average assists per game.' },
+  gpm:       { label: 'Gold / min',      f: d3.format('d'), d: 'Average gold earned per minute.' },
+  xpm:       { label: 'XP / min',        f: d3.format('d'), d: 'Average experience earned per minute.' },
+  lh_min:    { label: 'Last hits / min', f: d3.format('.1f'), d: 'Last hits per minute of game time.' },
+  denies:    { label: 'Denies',          f: d3.format('.1f'), d: 'Average denies per game.' },
+  dmg_min:   { label: 'Hero dmg / min',  f: d3.format(',d'), d: 'Damage dealt to enemy heroes per minute of game time.' },
+  tower_dmg: { label: 'Tower damage',    f: d3.format(',d'), d: 'Average damage to buildings per game.' },
+  healing:   { label: 'Hero healing',    f: d3.format(',d'), d: 'Average healing done to heroes per game.' },
+  stuns:     { label: 'Stun duration',   f: (v) => d3.format('.1f')(v) + 's', d: 'Average seconds of stun applied to enemies per game.' },
+  teamfight: { label: 'Teamfight part.', f: (v) => d3.format('.1f')(v) + '%', d: 'Share of the team’s kills the player took part in (OpenDota’s teamfight participation).' },
+  wards:     { label: 'Wards placed',    f: d3.format('.1f'), d: 'Observer plus sentry wards placed per game.' },
+  stacks:    { label: 'Camps stacked',   f: d3.format('.1f'), d: 'Neutral camps stacked per game.' },
+  hero_pool: { label: 'Hero pool',       f: d3.format('d'), d: 'Different heroes played in these games.' }
+};
+window.DPS.KEYS = {
+  1: ['xwin', 'xlane', 'waa', 'winrate', 'kda', 'gpm', 'xpm', 'lh_min', 'dmg_min', 'tower_dmg', 'kills', 'deaths', 'hero_pool'],
+  2: ['xwin', 'xlane', 'waa', 'winrate', 'kda', 'xpm', 'gpm', 'kills', 'dmg_min', 'lh_min', 'tower_dmg', 'deaths', 'hero_pool'],
+  3: ['xwin', 'xlane', 'waa', 'winrate', 'kda', 'stuns', 'teamfight', 'xpm', 'assists', 'dmg_min', 'tower_dmg', 'deaths', 'hero_pool'],
+  4: ['xwin', 'xlane', 'waa', 'winrate', 'kda', 'assists', 'teamfight', 'stuns', 'wards', 'stacks', 'dmg_min', 'deaths', 'hero_pool'],
+  5: ['xwin', 'xlane', 'waa', 'winrate', 'kda', 'wards', 'stacks', 'healing', 'assists', 'teamfight', 'stuns', 'deaths', 'hero_pool']
+};
+window.DPS.color = d3.interpolateRgbBasis(['#3567b8', '#a3a3a3', '#cf2f33']);
+window.DPS.ord = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+window.DPS.fmtDate = (s) => d3.utcFormat('%b %-d, %Y')(d3.utcParse('%Y-%m-%d')(s));
+// Does a match row pass the date and opponent filters?
+window.DPS.keep = (r, prm) => {
+  prm = prm || dash.params();
+  const from = prm.from || '0000-00-00', to = prm.to || '9999-12-31';
+  return r.date >= from && r.date <= to && (Number(r.opp_tier) || 3) <= (Number(prm.opp) || 1);
+};
+// Every qualifying stats row (one per position) for a player.
+window.DPS.rowsFor = (id) => {
+  const S = dash.data('stats');
+  if (S.status !== 'ok' || !S.data) return [];
+  return S.data.filter((p) => String(p.id) === String(id)).sort((a, b) => b.games - a.games);
+};
+// The selected player's row: the chosen position if it qualifies, else their main position.
+window.DPS.player = () => {
+  const D = window.DPS;
+  const rows = D.rowsFor(D.sel);
+  return rows.find((p) => D.selPos && p.pos === D.selPos) || rows.find((p) => p.main) || rows[0] || null;
+};
+// Shown player: the selection if it qualifies, else the most-played player in range.
+window.DPS.shown = () => {
+  const S = dash.data('stats');
+  if (S.status !== 'ok' || !S.data || !S.data.length) return null;
+  return window.DPS.player() || S.data.find((p) => p.main) || S.data[0];
+};
+window.DPS.compared = () => {
+  const D = window.DPS, p = D.shown();
+  if (!D.cmp || !p || String(D.cmp) === String(p.id)) return null;
+  const rows = D.rowsFor(D.cmp);
+  return rows.find((r) => r.pos === p.pos) || rows.find((r) => r.main) || null;
+};
+// Hero art lookup from the heroart dataset.
+window.DPS.art = () => {
+  const A = dash.data('heroart');
+  if (A.status !== 'ok' || !A.data || !A.data.length) return null;
+  if (window.DPS._artSrc !== A.data) {
+    const idx = {}, names = {};
+    A.data.forEach((r) => { idx[String(r.hero)] = Number(r.idx); names[String(r.hero)] = r.name; });
+    const f = A.data[0];
+    window.DPS._art = { idx, names, cols: Number(f.cols), rows: Number(f.rows), big: f.big, pixel: f.pixel };
+    window.DPS._artSrc = A.data;
+  }
+  return window.DPS._art;
+};
+window.DPS.paint = (el, hero, which) => {
+  const a = window.DPS.art();
+  const i = a ? a.idx[String(hero)] : undefined;
+  if (i === undefined || !a[which]) return false;
+  el.style.backgroundImage = 'url("' + a[which] + '")';
+  el.style.backgroundSize = (a.cols * 100) + '% ' + (a.rows * 100) + '%';
+  el.style.backgroundPosition = ((i % a.cols) / (a.cols - 1) * 100) + '% ' + (Math.floor(i / a.cols) / (a.rows - 1) * 100) + '%';
+  return true;
+};
+window.DPS.heroName = (h) => {
+  const a = window.DPS.art();
+  if (a && a.names[String(h)]) return a.names[String(h)];
+  const HL = dash.data('herolist');
+  const r = HL.status === 'ok' ? HL.data.find((x) => String(x.hero) === String(h)) : null;
+  return r ? r.name : 'Hero ' + h;
+};
+window.DPS.teamRow = (t) => {
+  const T = dash.data('teams');
+  if (T.status !== 'ok' || !T.data) return null;
+  if (window.DPS._teamSrc !== T.data) { window.DPS._teams = new Map(T.data.map((r) => [String(r.team), r])); window.DPS._teamSrc = T.data; }
+  return window.DPS._teams.get(String(t)) || null;
+};
+window.DPS.teamName = (t) => { const r = window.DPS.teamRow(t); return r ? r.name : (t ? 'Team ' + t : 'No team'); };
+window.DPS.VIEWS = { home: 'home', player: 'player-view', hero: 'hero-view', team: 'team-view', event: 'event-view' };
+window.DPS.PLAYER_DRAWS = ['card', 'bars', 'bars-sub', 'line', 'heroes', 'heroart', 'recent', 'trend', 'trend-sub', 'cmp', 'board', 'search-msg', 'top5'];
+window.DPS.redraw = () => window.DPS.PLAYER_DRAWS.forEach((n) => dash.draw(n));
+window.DPS.show = (view, link) => {
+  const D = window.DPS;
+  Object.entries(D.VIEWS).forEach(([k, id]) => document.querySelectorAll('#' + id).forEach((e) => { e.hidden = k !== view; }));
+  D.view = view;
+  D.link = link || (view === 'home' ? 'home' : D.VIEWS[view]);
+  dash.setLink(D.link);
+  const top = document.getElementById('top');
+  if (top) top.scrollIntoView({ behavior: 'auto', block: 'start' });
+};
+window.DPS.select = (id, pos) => {
+  const D = window.DPS;
+  D.sel = String(id);
+  D.selPos = pos ? Number(pos) : null;
+  D.miss = null;
+  try { localStorage.setItem('dps-sel', String(id)); } catch (e) {}
+  D.show('player', 'p-' + id + (pos ? '-' + pos : ''));
+  D.redraw();
+};
+window.DPS.openHero = (h) => {
+  const D = window.DPS;
+  D.hero = String(h);
+  D.show('hero', 'h-' + h);
+  ['hero-head', 'hero-players'].forEach((n) => dash.draw(n));
+};
+window.DPS.openTeam = (t) => {
+  const D = window.DPS;
+  D.team = String(t);
+  D.show('team', 't-' + t);
+  ['team-head', 'team-roster', 'team-recent'].forEach((n) => dash.draw(n));
+};
+window.DPS.openEvent = (l) => {
+  const D = window.DPS;
+  D.event = String(l);
+  D.show('event', 'e-' + l);
+  ['ev-head', 'ev-teams', 'ev-players'].forEach((n) => dash.draw(n));
+};
+// Open whatever a link's #name points at. Returns true when it named a page.
+window.DPS.route = (hash) => {
+  const D = window.DPS;
+  let m;
+  if ((m = /^#p-(\d+)(?:-([1-5]))?$/.exec(hash))) {
+    D.sel = m[1]; D.selPos = m[2] ? Number(m[2]) : null;
+    D.show('player', hash.slice(1)); D.redraw(); return true;
+  }
+  if ((m = /^#h-(\d+)$/.exec(hash))) { D.openHero(m[1]); return true; }
+  if ((m = /^#t-(\d+)$/.exec(hash))) { D.openTeam(m[1]); return true; }
+  if ((m = /^#e-(\d+)$/.exec(hash))) { D.openEvent(m[1]); return true; }
+  if (hash === '#player-view') { D.show('player'); return true; }
+  if (hash === '#home') { D.show('home'); return true; }
+  return false;
+};
+try { const s = localStorage.getItem('dps-sel'); if (s) window.DPS.sel = s; } catch (e) {}
+window.DPS.setRange = (from, to) => dash.setParams({ from: from || '', to: to || '' });
+</script>
+
+<script>
+dash.calc('stats', {
+  inputs: ['pm', 'players', 'scope'],
+  title: 'Player stats for the selected dates and opponents',
+  description: 'One row per pro per position they reached the minimum games at, inside the From/To dates and against the chosen opponent tiers. Main = their most-played qualifying position. WAA is measured against the average xWin of all rows at the same position (waa_base); xwin_se is the standard error of xWin %. xwin and xlane are pulled toward the position average by k games of it (shrink_xwin / shrink_xlane in scope): (games x raw + k x average) / (games + k); the raw values are kept as xwin_raw and xlane_raw. WAA uses the raw values.',
+  fn: (pm, players, scope) => {
+    const prm = dash.params();
+    const from = prm.from || '0000-00-00', to = prm.to || '9999-12-31', min = Number(prm.min) || 15, opp = Number(prm.opp) || 1;
+    const POS = { 1: 'Carry', 2: 'Mid', 3: 'Offlane', 4: 'Soft support', 5: 'Hard support' };
+    const info = new Map(players.map((p) => [String(p.id), p]));
+    const by = new Map();
+    for (const r of pm) {
+      if (r.date < from || r.date > to || (Number(r.opp_tier) || 3) > opp) continue;
+      let a = by.get(r.id);
+      if (!a) by.set(r.id, (a = { n: 0, pos: {}, last: null }));
+      a.n++;
+      (a.pos[r.pos] = a.pos[r.pos] || []).push(r);
+      if (!a.last || r.date >= a.last.date) a.last = r;
+    }
+    const num = (v) => v !== null && v !== '' && v !== undefined;
+    const avg = (rs, k) => { let s = 0, n = 0; for (const r of rs) { if (num(r[k])) { s += +r[k]; n++; } } return n ? s / n : 0; };
+    const rate = (rs, k) => rs.reduce((s, r) => s + (+r[k] || 0) * 60 / Math.max(+r.sec, 1), 0) / rs.length;
+    const rd = (v, d) => Math.round(v * 10 ** d) / 10 ** d;
+    const out = [];
+    for (const [id, a] of by) {
+      const p = info.get(String(id)) || {};
+      const qual = Object.keys(a.pos).filter((k) => a.pos[k].length >= min).sort((x, y) => a.pos[y].length - a.pos[x].length || x - y);
+      qual.forEach((pk, qi) => {
+        const rs = a.pos[pk], pos = +pk;
+        const W = rs.reduce((s, r) => s + (+r.win), 0);
+        const K = avg(rs, 'k'), Dd = avg(rs, 'd'), A = avg(rs, 'a');
+        const xs = rs.filter((r) => num(r.xwin)).map((r) => +r.xwin);
+        const xm = xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : 0.5;
+        const sd = xs.length > 1 ? Math.sqrt(xs.reduce((s, v) => s + (v - xm) ** 2, 0) / (xs.length - 1)) : 0;
+        const hc = {};
+        rs.forEach((r) => { hc[r.hero] = (hc[r.hero] || 0) + 1; });
+        const topHero = Object.keys(hc).sort((x, y) => hc[y] - hc[x] || x - y)[0];
+        out.push({
+          key: id + '-' + pos, id: Number(id), name: p.name || String(id), team: p.team || '', team_id: Number(a.last.team) || 0, country: p.country || '',
+          pos, role: POS[pos], main: qi === 0, positions: qual.length, all_games: a.n,
+          pos_share: Math.round(rs.length / a.n * 100),
+          pos_by_lane: Math.round(rs.filter((r) => Number(r.by_hero) === 2).length / rs.length * 100),
+          games: rs.length, wins: W, losses: rs.length - W, winrate: rd(W / rs.length * 100, 1),
+          kills: rd(K, 1), deaths: rd(Dd, 1), assists: rd(A, 1), kda: rd((K + A) / Math.max(Dd, 1), 2),
+          gpm: Math.round(avg(rs, 'gpm')), xpm: Math.round(avg(rs, 'xpm')), lh_min: rd(rate(rs, 'lh'), 1), denies: rd(avg(rs, 'den'), 1),
+          dmg_min: Math.round(rate(rs, 'dmg')), tower_dmg: Math.round(avg(rs, 'td')), healing: Math.round(avg(rs, 'heal')),
+          stuns: rd(avg(rs, 'stun'), 1), teamfight: rd(avg(rs, 'tf'), 1), wards: rd(avg(rs, 'wards'), 1), stacks: rd(avg(rs, 'stack'), 1),
+          hero_pool: Object.keys(hc).length, top_hero: Number(topHero), top_hero_games: hc[topHero],
+          last_match: rs.reduce((m, r) => (r.date > m ? r.date : m), ''),
+          xwin: rd(xm * 100, 1), xwin_raw: rd(xm * 100, 1), xwin_se: rd(sd / Math.sqrt(Math.max(xs.length, 1)) * 100, 1),
+          xlane: rd(avg(rs, 'xlane') * 100, 1), xlane_raw: rd(avg(rs, 'xlane') * 100, 1),
+          _ls: rs.reduce((s, r) => s + (num(r.xlane) ? +r.xlane : 0), 0), _ln: rs.filter((r) => num(r.xlane)).length,
+          vs_t1: Math.round(rs.filter((r) => Number(r.opp_tier) === 1).length / rs.length * 100),
+          opp_elo: Math.round(avg(rs, 'opp_elo')),
+          waa: 0, waa_base: 0, _xs: xs.reduce((s, v) => s + v, 0), _xn: xs.length,
+          win_vs_x: rd(W / rs.length * 100 - xm * 100, 1)
+        });
+      });
+    }
+    // WAA baseline: the game-weighted average xWin of every listed row at the same position,
+    // so a typical player at each position sits at 0 and each position adds up to about 0.
+    const base = {}, lbase = {};
+    out.forEach((o) => {
+      const b = (base[o.pos] = base[o.pos] || { s: 0, n: 0 }); b.s += o._xs; b.n += o._xn;
+      const l = (lbase[o.pos] = lbase[o.pos] || { s: 0, n: 0 }); l.s += o._ls; l.n += o._ln;
+    });
+    // Small samples: pull xWin and lane xWin toward the position average by k games of it.
+    const ks = (txt) => String(txt || '').split(',').map(Number);
+    const sc = scope && scope[0] ? scope[0] : {};
+    const kx = ks(sc.shrink_xwin), kl = ks(sc.shrink_xlane);
+    out.forEach((o) => {
+      const b = base[o.pos].n ? base[o.pos].s / base[o.pos].n : 0.5;
+      const lb = lbase[o.pos].n ? lbase[o.pos].s / lbase[o.pos].n : 0.5;
+      o.waa = rd(o._xs - o._xn * b, 1);
+      o.waa_base = rd(b * 100, 1);
+      const k1 = kx[o.pos - 1] || 30, k2 = kl[o.pos - 1] || 30;
+      if (o._xn) o.xwin = rd((o._xs + k1 * b) / (o._xn + k1) * 100, 1);
+      if (o._ln) o.xlane = rd((o._ls + k2 * lb) / (o._ln + k2) * 100, 1);
+      o.shrink_games = k1;
+      delete o._xs; delete o._xn; delete o._ls; delete o._ln;
+    });
+    out.sort((a, b) => b.games - a.games || a.name.localeCompare(b.name));
+    return out;
+  }
+});
+
+dash.calc('pctl', {
+  inputs: ['stats'],
+  title: 'Percentile vs same position',
+  description: 'Each stat ranked 1-100 against every listed row with the same position in the selected dates and opponents; deaths reversed so fewer is better.',
+  fn: (stats) => {
+    const keys = ['xwin', 'xlane', 'waa', 'winrate', 'kda', 'kills', 'deaths', 'assists', 'gpm', 'xpm', 'lh_min', 'denies', 'dmg_min', 'tower_dmg', 'healing', 'stuns', 'teamfight', 'wards', 'stacks', 'hero_pool'];
+    const groups = {};
+    stats.forEach((p) => { (groups[p.pos] = groups[p.pos] || []).push(p); });
+    const out = stats.map((p) => ({ key: p.key, id: p.id, pos: p.pos, group_size: groups[p.pos].length }));
+    const byKey = new Map(out.map((o) => [o.key, o]));
+    Object.values(groups).forEach((g) => {
+      keys.forEach((s) => {
+        const vals = g.map((p) => +p[s]);
+        const n = vals.length;
+        g.forEach((p) => {
+          const v = +p[s];
+          let below = 0, eq = 0;
+          vals.forEach((x) => { if (x < v) below++; else if (x === v) eq++; });
+          let pc = n > 1 ? (below + (eq - 1) / 2) / (n - 1) * 100 : 50;
+          if (s === 'deaths') pc = 100 - pc;
+          byKey.get(p.key)[s] = Math.max(1, Math.min(100, Math.round(pc)));
+        });
+      });
+    });
+    return out;
+  }
+});
+
+dash.calc('herostats', {
+  inputs: ['pm', 'herolist'],
+  title: 'Heroes per player and position',
+  description: 'Games, wins and win rate for each pro on each hero at each position, inside the From/To dates and against the chosen opponent tiers.',
+  fn: (pm, herolist) => {
+    const prm = dash.params();
+    const from = prm.from || '0000-00-00', to = prm.to || '9999-12-31', opp = Number(prm.opp) || 1;
+    const H = new Map(herolist.map((h) => [String(h.hero), h]));
+    const m = new Map();
+    for (const r of pm) {
+      if (r.date < from || r.date > to || (Number(r.opp_tier) || 3) > opp) continue;
+      const k = r.id + '|' + r.pos + '|' + r.hero;
+      let a = m.get(k);
+      if (!a) m.set(k, (a = { id: Number(r.id), pos: Number(r.pos), hero: Number(r.hero), games: 0, wins: 0 }));
+      a.games++; a.wins += +r.win;
+    }
+    return [...m.values()].map((a) => {
+      const h = H.get(String(a.hero)) || {};
+      return { ...a, name: h.name || String(a.hero), usual_pos: h.usual_pos || '', winrate: Math.round(a.wins / a.games * 1000) / 10 };
+    });
+  }
+});
+
+dash.calc('window', {
+  inputs: ['pm', 'stats'],
+  title: 'Selected dates and opponents',
+  description: 'Matches and qualifying pros inside the From/To dates against the chosen opponent tiers, with the first and last match date found.',
+  fn: (pm, stats) => {
+    const prm = dash.params();
+    const from = prm.from || '0000-00-00', to = prm.to || '9999-12-31', opp = Number(prm.opp) || 1;
+    const ids = new Set();
+    let first = '', last = '';
+    for (const r of pm) {
+      if (r.date < from || r.date > to || (Number(r.opp_tier) || 3) > opp) continue;
+      ids.add(r.match_id);
+      if (!first || r.date < first) first = r.date;
+      if (r.date > last) last = r.date;
+    }
+    return [{ matches: ids.size, pros: new Set(stats.map((s) => s.id)).size, first, last }];
+  }
+});
+
+dash.calc('movers', {
+  inputs: ['pm', 'stats', 'tournaments'],
+  title: 'Biggest xWin risers and fallers',
+  description: 'For each listed player at their main position: average xWin since the start of the last finished Tier 1 event in the selected dates (8+ games) minus their average before it (15+ games), against the chosen opponent tiers. With no such event in range, the last 30 days are used instead.',
+  fn: (pm, stats, tournaments) => {
+    const prm = dash.params();
+    const from = prm.from || '0000-00-00', opp = Number(prm.opp) || 1;
+    let to = prm.to || '';
+    if (!to) pm.forEach((r) => { if (r.date > to) to = r.date; });
+    const ev = tournaments.filter((t) => String(t.tier1) === '1' && t.status === 'Finished' && t.start > from && t.end <= to)
+      .sort((a, b) => (a.end < b.end ? 1 : -1))[0];
+    let cut, label;
+    if (ev) { cut = ev.start; label = ev.name; }
+    else { const d = new Date(to + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - 29); cut = d.toISOString().slice(0, 10); label = ''; }
+    const main = new Map(stats.filter((s) => s.main).map((s) => [String(s.id), s]));
+    const acc = new Map();
+    for (const r of pm) {
+      if (r.date < from || r.date > to || (Number(r.opp_tier) || 3) > opp || r.xwin === '' || r.xwin == null) continue;
+      const s = main.get(String(r.id));
+      if (!s || Number(r.pos) !== s.pos) continue;
+      let a = acc.get(r.id);
+      if (!a) acc.set(r.id, (a = { rs: 0, rn: 0, bs: 0, bn: 0 }));
+      if (r.date >= cut) { a.rs += +r.xwin; a.rn++; } else { a.bs += +r.xwin; a.bn++; }
+    }
+    const out = [];
+    acc.forEach((a, id) => {
+      if (a.rn < 8 || a.bn < 15) return;
+      const s = main.get(String(id));
+      const now = a.rs / a.rn * 100, before = a.bs / a.bn * 100;
+      out.push({ id: Number(id), name: s.name, team: s.team, pos: s.pos, top_hero: s.top_hero, recent: Math.round(now * 10) / 10, before: Math.round(before * 10) / 10,
+        delta: Math.round((now - before) * 10) / 10, recent_games: a.rn, before_games: a.bn, since: cut, since_event: label });
+    });
+    return out.sort((a, b) => b.delta - a.delta);
+  }
+});
+
+dash.calc('heroagg', {
+  inputs: ['pm', 'herolist', 'players'],
+  title: 'Heroes in the selected dates',
+  description: 'Per hero, from pro rows inside the dates and opponent tiers: games, wins, pick rate (games / matches with a listed pro), most common position, and the best pro on it by average xWin with 5+ games.',
+  fn: (pm, herolist, players) => {
+    const prm = dash.params();
+    const from = prm.from || '0000-00-00', to = prm.to || '9999-12-31', opp = Number(prm.opp) || 1;
+    const H = new Map(herolist.map((h) => [String(h.hero), h]));
+    const pn = new Map(players.map((p) => [String(p.id), p.name]));
+    const agg = new Map(), mids = new Set();
+    for (const r of pm) {
+      if (r.date < from || r.date > to || (Number(r.opp_tier) || 3) > opp) continue;
+      mids.add(r.match_id);
+      let a = agg.get(r.hero);
+      if (!a) agg.set(r.hero, (a = { games: 0, wins: 0, pos: {}, pl: new Map() }));
+      a.games++; a.wins += +r.win;
+      a.pos[r.pos] = (a.pos[r.pos] || 0) + 1;
+      let q = a.pl.get(r.id);
+      if (!q) a.pl.set(r.id, (q = { g: 0, xs: 0, xn: 0 }));
+      q.g++;
+      if (r.xwin !== '' && r.xwin != null) { q.xs += +r.xwin; q.xn++; }
+    }
+    const total = Math.max(mids.size, 1);
+    return [...agg.entries()].map(([hero, a]) => {
+      const pos = Object.keys(a.pos).sort((x, y) => a.pos[y] - a.pos[x])[0];
+      let best = null;
+      a.pl.forEach((q, id) => { if (q.g >= 5 && q.xn) { const x = q.xs / q.xn; if (!best || x > best.x) best = { id, x, g: q.g }; } });
+      return {
+        hero: Number(hero), name: (H.get(String(hero)) || {}).name || String(hero), games: a.games, wins: a.wins,
+        winrate: Math.round(a.wins / a.games * 1000) / 10, pick: Math.round(a.games / total * 1000) / 10,
+        pos: Number(pos), pos_share: Math.round(a.pos[pos] / a.games * 100), players: a.pl.size,
+        best_id: best ? Number(best.id) : 0, best_name: best ? (pn.get(String(best.id)) || best.id) : '',
+        best_xwin: best ? Math.round(best.x * 1000) / 10 : null, best_games: best ? best.g : 0
+      };
+    }).sort((a, b) => b.games - a.games);
+  }
+});
+
+dash.calc('teamagg', {
+  inputs: ['pm', 'teams'],
+  title: 'Teams in the selected dates',
+  description: 'Per team, from its pro rows inside the dates and opponent tiers: record (one result per match), team xWin (average xWin of its listed pros), and current Elo and Tier 1 status from the teams file.',
+  fn: (pm, teams) => {
+    const prm = dash.params();
+    const from = prm.from || '0000-00-00', to = prm.to || '9999-12-31', opp = Number(prm.opp) || 1;
+    const T = new Map(teams.map((t) => [String(t.team), t]));
+    const agg = new Map();
+    for (const r of pm) {
+      if (!r.team || r.date < from || r.date > to || (Number(r.opp_tier) || 3) > opp) continue;
+      let a = agg.get(r.team);
+      if (!a) agg.set(r.team, (a = { m: new Map(), xs: 0, xn: 0, last: '' }));
+      if (!a.m.has(r.match_id)) a.m.set(r.match_id, +r.win);
+      if (r.xwin !== '' && r.xwin != null) { a.xs += +r.xwin; a.xn++; }
+      if (r.date > a.last) a.last = r.date;
+    }
+    return [...agg.entries()].map(([team, a]) => {
+      const t = T.get(String(team)) || {};
+      const n = a.m.size, w = [...a.m.values()].reduce((s, v) => s + v, 0);
+      const x = a.xn ? a.xs / a.xn * 100 : 50;
+      return {
+        team: Number(team), name: t.name || 'Team ' + team, tag: t.tag || '', tier1: Number(t.tier1) || 0, elo: Number(t.elo) || 1500,
+        matches: n, wins: w, losses: n - w, winrate: Math.round(w / n * 1000) / 10, xwin: Math.round(x * 10) / 10,
+        gap: Math.round((w / n * 100 - x) * 10) / 10, last: a.last
+      };
+    }).sort((a, b) => b.elo - a.elo);
+  }
+});
+</script>
+
+<script>
+(function () {
+  const D = window.DPS;
+  const sync = () => {
+    const prm = dash.params();
+    document.querySelectorAll('#dps-min').forEach((s) => { s.value = String(prm.min || 15); });
+  };
+  sync();
+  const resolve = (txt) => {
+    const P = dash.data('players');
+    if (P.status !== 'ok') return null;
+    const q = (txt || '').trim().toLowerCase();
+    if (!q) return null;
+    const base = q.split(' · ')[0];
+    const S = dash.data('stats');
+    const inRange = new Set(S.status === 'ok' ? S.data.map((s) => String(s.id)) : []);
+    const pool = P.data.slice().sort((a, b) => inRange.has(String(b.id)) - inRange.has(String(a.id)));
+    return pool.find((p) => (p.name + ' · ' + (p.team || 'No team')).toLowerCase() === q)
+      || pool.find((p) => p.name.toLowerCase() === base)
+      || pool.find((p) => p.name.toLowerCase().startsWith(base))
+      || pool.find((p) => p.name.toLowerCase().includes(base));
+  };
+  const listed = (v) => { const S = dash.data('stats'); return (S.status === 'ok' && S.data.some((p) => (p.name + ' · ' + (p.team || 'No team')) === v)) || / — (team|hero)$/.test(v); };
+  // Teams and heroes by name, for the main search box.
+  const findTeam = (q) => {
+    const T = dash.data('teamagg'), X = dash.data('teams');
+    const pool = (T.status === 'ok' ? T.data : []).concat(X.status === 'ok' ? X.data.map((t) => ({ team: t.team, name: t.name })) : []);
+    return pool.find((t) => (t.name || '').toLowerCase() === q) || pool.find((t) => (t.name || '').toLowerCase().startsWith(q));
+  };
+  const findHero = (q) => {
+    const A = dash.data('heroart'), L = dash.data('herolist');
+    const pool = A.status === 'ok' ? A.data : (L.status === 'ok' ? L.data : []);
+    return pool.find((h) => (h.name || '').toLowerCase() === q) || pool.find((h) => (h.name || '').toLowerCase().startsWith(q));
+  };
+  const go = () => {
+    const inp = document.getElementById('dps-q');
+    if (!inp || !inp.value.trim()) return;
+    const raw = inp.value.trim(), q = raw.toLowerCase();
+    const kind = / — team$/.test(q) ? 'team' : / — hero$/.test(q) ? 'hero' : '';
+    const base = q.replace(/ — (team|hero)$/, '');
+    const p = kind ? null : resolve(raw);
+    const exactP = p && p.name.toLowerCase() === base.split(' · ')[0];
+    const t = kind === 'hero' ? null : findTeam(base);
+    const h = kind === 'team' ? null : findHero(base);
+    D.miss = null;
+    if (kind === 'team' && t) D.openTeam(t.team);
+    else if (kind === 'hero' && h) D.openHero(h.hero);
+    else if (exactP) D.select(p.id);
+    else if (t && t.name.toLowerCase() === base) D.openTeam(t.team);
+    else if (h && h.name.toLowerCase() === base) D.openHero(h.hero);
+    else if (p) D.select(p.id);
+    else if (t) D.openTeam(t.team);
+    else if (h) D.openHero(h.hero);
+    else { D.miss = raw; dash.draw('search-msg'); return; }
+    inp.value = ''; dash.draw('search-msg');
+  };
+  document.querySelectorAll('#dps-q').forEach((inp) => {
+    inp.addEventListener('change', go);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+    inp.addEventListener('input', () => { if (listed(inp.value)) go(); });
+  });
+  const cmpGo = () => {
+    const inp = document.getElementById('dps-cmp');
+    if (!inp || !inp.value.trim()) return;
+    const p = resolve(inp.value);
+    D.cmp = p ? String(p.id) : null;
+    D.cmpMiss = p ? null : inp.value.trim();
+    inp.value = '';
+    ['bars', 'cmp', 'trend'].forEach((n) => dash.draw(n));
+  };
+  document.querySelectorAll('#dps-cmp').forEach((inp) => {
+    inp.addEventListener('change', cmpGo);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); cmpGo(); } });
+    inp.addEventListener('input', () => { if (listed(inp.value)) cmpGo(); });
+  });
+  const dateChange = (el, key) => {
+    if (!(el.value && el.validity.valid)) return;
+    const prm = dash.params();
+    const next = { from: prm.from || '', to: prm.to || '' };
+    next[key] = el.value;
+    if (next.from && next.to && next.from > next.to) { if (key === 'from') next.to = next.from; else next.from = next.to; }
+    D.setRange(next.from, next.to);
+  };
+  document.querySelectorAll('#dps-from').forEach((el) => {
+    el.addEventListener('change', () => dateChange(el, 'from'));
+    el.addEventListener('blur', () => dash.draw('from-in'));
+  });
+  document.querySelectorAll('#dps-to').forEach((el) => {
+    el.addEventListener('change', () => dateChange(el, 'to'));
+    el.addEventListener('blur', () => dash.draw('to-in'));
+  });
+  document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => D.show('home')));
+  document.querySelectorAll('.dps-title').forEach((h) => h.addEventListener('click', () => D.show('home')));
+  document.querySelectorAll('#dps-min').forEach((s) => s.addEventListener('change', () => dash.setParams({ min: Number(s.value) })));
+  document.querySelectorAll('#dps-posf').forEach((sel) => sel.addEventListener('change', () => { D.pos = sel.value; dash.draw('board'); }));
+  document.querySelectorAll('.dps-sort').forEach((b) => b.addEventListener('click', () => {
+    const k = b.getAttribute('data-k');
+    const s = D.sort;
+    D.sortTouched = true;
+    if (s.k === k) s.dir = -s.dir; else { s.k = k; s.dir = (k === 'name' || k === 'team' || k === 'pos') ? 1 : -1; }
+    document.querySelectorAll('.dps-board th').forEach((th) => th.removeAttribute('aria-sort'));
+    const th = b.closest('th'); if (th) th.setAttribute('aria-sort', s.dir > 0 ? 'ascending' : 'descending');
+    dash.draw('board');
+  }));
+  document.querySelectorAll('#dps-board').forEach((t) => t.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    const tr = e.target.closest('tr[data-pid]');
+    if (!tr) return;
+    D.select(tr.getAttribute('data-pid'), tr.getAttribute('data-pos'));
+  }));
+  D.route(location.hash);
+  window.addEventListener('hashchange', () => { if (location.hash !== '#' + D.link) D.route(location.hash); });
+})();
+</script>
+
+<script>
+(function () {
+  const D = window.DPS;
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const mark = (e, src, field, key, col) => { e.setAttribute('data-source', src); e.setAttribute('data-field', field); e.setAttribute('data-where', (col || 'key') + '=' + key); return e; };
+  const wait = (el, st, what) => {
+    el.classList.toggle('dash-skeleton', st === 'loading');
+    el.replaceChildren();
+    if (st === 'error' || st === 'missing') el.textContent = what + ' failed to load.';
+  };
+  const tip = (e, s) => { if (D.STAT[s]) { e.title = D.STAT[s].d; e.classList.add('dps-tipped'); } return e; };
+  const link = (text, fn, cls) => { const b = mk('button', 'dps-link' + (cls ? ' ' + cls : ''), text); b.type = 'button'; b.addEventListener('click', (e) => { e.stopPropagation(); fn(); }); return b; };
+  const teamLink = (t, label) => t ? link(label || D.teamName(t), () => D.openTeam(t)) : mk('span', null, label || '—');
+  const pix = (hero) => { const s = mk('span', 'dps-pix'); s.setAttribute('aria-hidden', 'true'); if (!D.paint(s, hero, 'pixel')) s.classList.add('none'); else s.title = D.heroName(hero); return s; };
+  const small = (n) => n < D.SMALL ? mk('span', 'dps-tag dps-small', 'Small sample') : null;
+  const empty = (el, cols, text) => { const r = mk('tr'); const td = mk('td', 'l dps-empty', text); td.colSpan = cols; r.appendChild(td); el.replaceChildren(r); };
+  const pct = (v) => d3.format('.1f')(v);
+  // A date cell that opens the match on OpenDota in a new tab.
+  const mlink = (id, text) => {
+    const td = mk('td');
+    const a = mk('a', 'dps-link dps-ext', text); a.href = 'https://www.opendota.com/matches/' + id; a.target = '_blank'; a.rel = 'noopener';
+    a.title = 'Open this match on OpenDota';
+    td.appendChild(a); return td;
+  };
+  // A league cell that opens the tournament page when we have one for it.
+  const evcell = (league, ln) => {
+    const td = mk('td', 'l');
+    const name = String(ln.get(String(league)) || league).trim();
+    const T = dash.data('tournaments');
+    const has = T.status === 'ok' && T.data.some((t) => String(t.league) === String(league));
+    td.append(has ? link(name, () => D.openEvent(league)) : name);
+    return td;
+  };
+  const has = (v) => v !== '' && v != null;
+
+  const one = (src, field, fmt) => (el) => {
+    const s = dash.data(src);
+    el.classList.toggle('dash-skeleton', s.status === 'loading');
+    el.textContent = s.status === 'ok' && s.data && s.data[0] ? fmt(s.data[0][field]) : '—';
+  };
+  dash.draw('w-pros', one('window', 'pros', d3.format(',')));
+  dash.draw('w-matches', one('window', 'matches', d3.format(',')));
+  dash.draw('w-opp', (el) => { el.textContent = 'against ' + (D.OPP[Number(dash.params().opp) || 1] || '').replace('All pro teams', 'any pro team').replace(/^Tier/, 'Tier'); });
+  dash.draw('w-range', (el) => {
+    const s = dash.data('window');
+    el.classList.toggle('dash-skeleton', s.status === 'loading');
+    const r = s.status === 'ok' && s.data && s.data[0];
+    el.textContent = r && r.first ? D.fmtDate(r.first) + ' to ' + D.fmtDate(r.last) : (r ? 'no matches in these dates' : '—');
+  });
+  dash.draw('n-share', one('scope', 'hero_share', String));
+  dash.draw('n-single', one('scope', 'heroes_single', String));
+  dash.draw('n-multi', one('scope', 'heroes_multi', String));
+  dash.draw('n-lane', one('scope', 'pos_lane_pct', String));
+  dash.draw('n-dropped', one('scope', 'matches_dropped', d3.format(',')));
+  dash.draw('n-leagues', one('scope', 'leagues_dropped', String));
+  dash.draw('n-t1', one('scope', 'tier1_teams', String));
+  dash.draw('m-auc', one('scope', 'xwin_auc', d3.format('.3f')));
+  dash.draw('m-lane', one('scope', 'lane_auc', d3.format('.3f')));
+  dash.draw('m-repx', one('scope', 'rep_xwin', d3.format('.2f')));
+  dash.draw('m-repw', one('scope', 'rep_win', d3.format('.2f')));
+  dash.draw('m-from', one('scope', 'test_from', (v) => D.fmtDate(v)));
+  dash.draw('m-mode', (el) => {
+    const s = dash.data('scope'); const r = s.status === 'ok' && s.data[0];
+    if (!r || r.auc_per_patch == null || r.auc_per_patch === '') { el.textContent = ''; return; }
+    el.textContent = 'Patches: each refresh also tests one model per game patch against one model for all patches on games the model never saw. This week: all patches ' + d3.format('.3f')(r.auc_all_patch) + ', per patch ' + d3.format('.3f')(r.auc_per_patch) + ', so the ' + (r.model_mode === 'per-patch' ? 'per-patch models are used.' : 'single all-patch model is used.');
+  });
+
+  dash.draw('weights', (el) => {
+    const M = dash.data('model');
+    if (M.status !== 'ok') { el.replaceChildren(); el.classList.toggle('dash-skeleton', M.status === 'loading'); return; }
+    el.classList.remove('dash-skeleton');
+    const feats = [];
+    M.data.forEach((r) => { if (!feats.find((f) => f.feature === r.feature)) feats.push({ feature: r.feature, label: r.label, group: r.group }); });
+    const max = d3.max(M.data, (r) => Math.abs(+r.weight)) || 1;
+    const out = [];
+    let grp = '';
+    feats.forEach((f) => {
+      if (f.group !== grp) {
+        grp = f.group;
+        const g = mk('tr', 'grp');
+        const td = mk('td', null, grp === '10-minute' ? 'At 10:00, vs. the opposing player in the same position (hero-adjusted)' : 'Whole game');
+        td.colSpan = 6; g.appendChild(td); out.push(g);
+      }
+      const tr = mk('tr'); tr.appendChild(mk('td', null, f.label));
+      for (let pos = 1; pos <= 5; pos++) {
+        const r = M.data.find((x) => String(x.pos) === String(pos) && x.feature === f.feature);
+        const v = r ? +r.weight : 0;
+        const td = mk('td', 'w' + (v === 0 ? ' zero' : ''));
+        const cell = mk('span', 'cell');
+        const bar = mk('i', v < 0 ? 'neg' : null); bar.style.width = Math.round(Math.abs(v) / max * 44) + 'px';
+        const num = mk('span', null, d3.format('+.2f')(v));
+        num.setAttribute('data-source', 'model'); num.setAttribute('data-field', 'weight'); num.setAttribute('data-where', 'pos=' + pos + '&feature=' + f.feature);
+        cell.append(bar, num); td.appendChild(cell); tr.appendChild(td);
+      }
+      out.push(tr);
+    });
+    el.replaceChildren(...out);
+  });
+
+  // ---------- Filters ----------
+  const bounds = () => { const s = dash.data('scope'); return s.status === 'ok' && s.data[0] ? s.data[0] : null; };
+  const dateIn = (key) => (el) => {
+    const b = bounds();
+    if (b) { el.min = b.first; el.max = b.last; }
+    if (document.activeElement === el) return;
+    const prm = dash.params();
+    el.value = prm[key] || (b ? (key === 'from' ? b.first : b.last) : '');
+  };
+  dash.draw('from-in', dateIn('from'));
+  dash.draw('to-in', dateIn('to'));
+
+  dash.draw('opp-chips', (el) => {
+    const cur = Number(dash.params().opp) || 1;
+    el.replaceChildren(...[1, 2, 3].map((n) => {
+      const b = mk('button', 'dps-chip' + (n === cur ? ' on' : ''), D.OPP[n]);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', n === cur ? 'true' : 'false');
+      b.title = n === 1 ? 'Only games against teams that played 5+ games at Tier 1 main events within six months.'
+        : n === 2 ? 'Adds established teams rated 1500+ Elo going into the game.' : 'Every counted pro game, including against lower-rated teams.';
+      b.addEventListener('click', () => dash.setParams({ opp: n }));
+      return b;
+    }));
+  });
+
+  dash.draw('presets', (el) => {
+    const E = dash.data('events'), b = bounds();
+    if (E.status !== 'ok' || !b) { el.replaceChildren(); el.classList.toggle('dash-skeleton', E.status === 'loading'); return; }
+    el.classList.remove('dash-skeleton');
+    const ev = E.data.slice().sort((a, c) => (a.start < c.start ? -1 : 1));
+    const short = (n) => n.replace('The International ', 'TI ');
+    const dayBefore = (s) => d3.utcFormat('%Y-%m-%d')(d3.utcDay.offset(d3.utcParse('%Y-%m-%d')(s), -1));
+    const dayAfter = (s) => d3.utcFormat('%Y-%m-%d')(d3.utcDay.offset(d3.utcParse('%Y-%m-%d')(s), 1));
+    const opts = [];
+    const last = ev[ev.length - 1];
+    if (last) opts.push(['Since ' + short(last.event), last.start, '']);
+    if (last) opts.push([short(last.event) + ' only', last.start, last.end]);
+    for (let i = ev.length - 1; i > 0; i--) opts.push(['Between ' + short(ev[i - 1].event) + ' and ' + short(ev[i].event), dayAfter(ev[i - 1].end), dayBefore(ev[i].start)]);
+    for (let i = ev.length - 2; i >= 0; i--) opts.push([short(ev[i].event) + ' only', ev[i].start, ev[i].end]);
+    opts.push(['Last 90 days', d3.utcFormat('%Y-%m-%d')(d3.utcDay.offset(d3.utcParse('%Y-%m-%d')(b.last), -89)), '']);
+    opts.push(['Everything since ' + short(ev[0] ? ev[0].event : 'start'), b.first, '']);
+    const prm = dash.params();
+    const cf = prm.from || b.first, ct = prm.to || b.last;
+    el.replaceChildren(...opts.map(([label, f, t]) => {
+      const btn = mk('button', 'dps-chip', label);
+      btn.type = 'button';
+      const on = cf === f && ct === (t || b.last);
+      if (on) btn.classList.add('on');
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.addEventListener('click', () => D.setRange(f, t));
+      return btn;
+    }));
+  });
+
+  dash.draw('names', (el) => {
+    const S = dash.data('stats'), T = dash.data('teamagg'), A = dash.data('heroart');
+    const seen = new Set();
+    const opt = (v) => { const o = document.createElement('option'); o.value = v; return o; };
+    const players = (S.status === 'ok' ? S.data : []).filter((p) => p.main && !seen.has(p.id) && seen.add(p.id)).sort((a, b) => a.name.localeCompare(b.name)).map((p) => opt(p.name + ' · ' + (p.team || 'No team')));
+    const teams = (T.status === 'ok' ? T.data : []).filter((t) => t.matches >= 5).map((t) => opt(t.name + ' — team'));
+    const heroes = (A.status === 'ok' ? A.data : []).map((h) => opt(h.name + ' — hero'));
+    el.replaceChildren(...players, ...teams, ...heroes);
+  });
+  dash.draw('pnames', (el) => {
+    const S = dash.data('stats');
+    const seen = new Set();
+    el.replaceChildren(...(S.status === 'ok' ? S.data : []).filter((p) => p.main && !seen.has(p.id) && seen.add(p.id)).sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
+      const o = document.createElement('option');
+      o.value = p.name + ' · ' + (p.team || 'No team');
+      return o;
+    }));
+  });
+
+  dash.draw('search-msg', (el) => {
+    el.textContent = D.miss ? 'Nothing matches "' + D.miss + '": try a player, team or hero name.' : '';
+  });
+
+  // ---------- Player page ----------
+  dash.draw('card', (el) => {
+    const S = dash.data('stats');
+    if (S.status !== 'ok') return wait(el, S.status, 'Player data');
+    el.classList.remove('dash-skeleton');
+    const p = D.shown();
+    if (!p) { el.replaceChildren(mk('p', 'dps-meta', 'No player has enough games for these dates and opponents. Widen the dates, include more opponents or lower the minimum games.')); return; }
+    const parts = [];
+    if (D.sel && String(D.sel) !== String(p.id)) {
+      const P = dash.data('players');
+      const want = P.status === 'ok' ? P.data.find((x) => String(x.id) === String(D.sel)) : null;
+      parts.push(mk('div', 'dps-notice', (want ? want.name : 'That player') + ' doesn’t have enough games for these dates and opponents, so the most active player is shown instead.'));
+    } else if (D.selPos && D.selPos !== p.pos) {
+      parts.push(mk('div', 'dps-notice', 'Not enough Pos ' + D.selPos + ' games in this range, so their main position is shown.'));
+    }
+    const name = mk('h2', 'dps-name'); name.appendChild(mark(mk('span', null, p.name), 'stats', 'name', p.key));
+    const badge = mk('div', 'dps-posbadge'); badge.setAttribute('aria-label', 'Position ' + p.pos);
+    badge.append(mk('small', null, 'POS'), mark(mk('b', null, p.pos), 'stats', 'pos', p.key));
+    const who = mk('div'); who.style.minWidth = '0';
+    const meta = mk('div', 'dps-meta');
+    meta.append(p.team_id ? teamLink(p.team_id, p.team || D.teamName(p.team_id)) : (p.team || 'No team listed'));
+    if (p.country) meta.append(' · ' + p.country);
+    who.append(name, mark(mk('div', 'dps-posname', p.role), 'stats', 'role', p.key), meta);
+    const head = mk('div', 'dps-namerow'); head.append(badge, who);
+    const rows = D.rowsFor(p.id);
+    const sw = mk('div', 'dps-posswitch');
+    if (rows.length > 1) {
+      sw.append(mk('span', 'dps-lab', 'Position'));
+      rows.slice().sort((a, b) => a.pos - b.pos).forEach((r) => {
+        const b = mk('button', 'dps-chip' + (r.pos === p.pos ? ' on' : ''), 'Pos ' + r.pos + ' · ' + r.games + ' g');
+        b.type = 'button'; b.setAttribute('aria-pressed', r.pos === p.pos ? 'true' : 'false');
+        b.title = r.role + ': stats and percentiles from their Pos ' + r.pos + ' games only';
+        b.addEventListener('click', () => D.select(p.id, r.pos));
+        sw.appendChild(b);
+      });
+    }
+    const pill = mk('div', 'dps-pill');
+    pill.append('Pos ' + p.pos + ' in ', mark(mk('span', null, p.pos_share), 'stats', 'pos_share', p.key), '% of their ' + p.all_games + ' games here · ',
+      mark(mk('span', null, p.vs_t1), 'stats', 'vs_t1', p.key), '% vs Tier 1');
+    const how = mk('div', 'dps-best');
+    how.append('Position read from the lane they played in ', mark(mk('b', null, p.pos_by_lane + '%'), 'stats', 'pos_by_lane', p.key), ' of these games; hero and gold decide the rest.');
+    const tags = mk('div', 'dps-tags');
+    const sm = small(p.games); if (sm) { sm.title = 'Under ' + D.SMALL + ' games: treat percentiles as rough.'; tags.appendChild(sm); }
+    const k = mk('div', 'dps-kpis six');
+    const kpi = (lab, field, txt, s) => { const d = mk('div', 'dps-kpi'); d.append(tip(mk('span', null, lab), s || field), mark(mk('b', null, txt), 'stats', field, p.key)); return d; };
+    const rec = mk('div', 'dps-kpi'); const rb = mk('b');
+    rb.append(mark(mk('span', null, p.wins), 'stats', 'wins', p.key), '–', mark(mk('span', null, p.losses), 'stats', 'losses', p.key));
+    rec.append(mk('span', null, 'Record'), rb);
+    const hl = (lab, field, txt) => { const d = kpi(lab, field, txt); d.classList.add('hl'); return d; };
+    const xk = hl('xWin %', 'xwin', d3.format('.1f')(p.xwin));
+    const se = mk('small', 'dps-se', 'raw ' + d3.format('.1f')(p.xwin_raw) + ' · ± ' + d3.format('.1f')(p.xwin_se));
+    se.title = 'Raw: the plain average over their ' + p.games + ' games. The big number pulls it toward the Pos ' + p.pos + ' average as if they had played ' + p.shrink_games + ' extra average games, so a short hot streak can\u2019t top the charts. ±: the likely range of their true xWin from this many games.';
+    xk.querySelector('b').after(se);
+    k.append(xk, hl('WAA', 'waa', d3.format('+.1f')(p.waa)), kpi('Win %', 'winrate', d3.format('.1f')(p.winrate)),
+      kpi('Games', 'games', p.games), rec, kpi('KDA', 'kda', d3.format('.2f')(p.kda)));
+    const gap = mk('div', 'dps-best');
+    const g = p.win_vs_x;
+    gap.append(Math.abs(g) < 3 ? 'Winning about as often as their stats predict (' : (g > 0 ? 'Winning more often than their stats predict (' : 'Winning less often than their stats predict ('),
+      mark(mk('b', null, d3.format('+.1f')(g)), 'stats', 'win_vs_x', p.key), ' points). A big gap usually points to teammates or luck.');
+    const best = mk('div', 'dps-best');
+    const C = dash.data('pctl');
+    const c = C.status === 'ok' && C.data ? C.data.find((r) => r.key === p.key) : null;
+    if (c) {
+      const keys = D.KEYS[p.pos].filter((s) => !['xwin', 'xlane', 'waa'].includes(s)).sort((a, b) => c[b] - c[a]);
+      const tag = (s) => { const b = mk('b'); b.append(D.STAT[s].label + ' (', mark(mk('span', null, c[s]), 'pctl', s, p.key), D.ord(c[s]).replace(String(c[s]), '') + ')'); return b; };
+      best.append('Best: ', tag(keys[0]), ' · Weakest: ', tag(keys[keys.length - 1]));
+    }
+    const last = mk('div', 'dps-best'); last.append('Last pro match in range ', mark(mk('b', null, D.fmtDate(p.last_match)), 'stats', 'last_match', p.key));
+    const share = mk('div', 'dps-best dps-share', 'To share this player, copy the page link while their page is open: it opens straight to them.');
+    el.replaceChildren(...parts, head, ...(rows.length > 1 ? [sw] : []), pill, how, ...(tags.childNodes.length ? [tags] : []), k, gap, best, last, share);
+  });
+
+  dash.draw('bars-sub', (el) => {
+    const C = dash.data('pctl');
+    const p = D.shown();
+    if (!p || C.status !== 'ok' || !C.data) { el.textContent = '—'; return; }
+    const c = C.data.find((r) => r.key === p.key);
+    el.textContent = 'Pos ' + p.pos + ' ' + p.role + ' key stats, ranked only against the ' + (c ? c.group_size : '—') + ' Pos ' + p.pos + ' players in these dates and opponents. The top three are model-based. Hover a stat for its definition.';
+  });
+
+  dash.draw('bars', (el) => {
+    const S = dash.data('stats'), C = dash.data('pctl');
+    if (S.status !== 'ok') return wait(el, S.status, 'Player data');
+    if (C.status !== 'ok' || !C.data) return wait(el, C.status === 'error' ? 'error' : 'loading', 'Percentiles');
+    el.classList.remove('dash-skeleton');
+    const p = D.shown(); if (!p) { el.replaceChildren(); return; }
+    const c = C.data.find((r) => r.key === p.key); if (!c) { el.replaceChildren(); return; }
+    const q = D.compared();
+    const cq = q ? C.data.find((r) => r.key === q.key) : null;
+    const bars = D.KEYS[p.pos].map((s) => {
+      const v = c[s], col = D.color(v / 100);
+      const row = mk('div', s === 'xwin' ? 'dps-bar hl' : 'dps-bar');
+      const tr = mk('div', 'dps-track');
+      const fill = mk('i'); fill.style.width = v + '%'; fill.style.background = col;
+      const dot = mark(mk('span', 'dps-dot', v), 'pctl', s, p.key); dot.style.left = v + '%'; dot.style.background = col;
+      dot.setAttribute('aria-label', D.STAT[s].label + ': ' + D.ord(v) + ' percentile');
+      tr.append(fill);
+      if (cq && cq[s] != null) {
+        const ring = mark(mk('span', 'dps-ring'), 'pctl', s, q.key); ring.style.left = cq[s] + '%';
+        ring.title = q.name + ': ' + D.ord(cq[s]) + ' percentile (' + D.STAT[s].f(q[s]) + ')';
+        tr.append(ring);
+      }
+      tr.append(dot);
+      row.append(tip(mk('div', 'dps-bar-label', D.STAT[s].label), s), tr, mark(mk('div', 'dps-val', D.STAT[s].f(p[s])), 'stats', s, p.key));
+      return row;
+    });
+    bars.splice(3, 0, mk('div', 'dps-split'));
+    el.replaceChildren(...bars);
+  });
+
+  dash.draw('cmp', (el) => {
+    const p = D.shown(), q = D.compared(), C = dash.data('pctl');
+    if (!p) { el.replaceChildren(); return; }
+    if (!q) {
+      const msg = D.cmpMiss ? 'No pro named "' + D.cmpMiss + '" has enough games for these dates and opponents.' : (D.cmp ? 'That player has no games that qualify for these dates and opponents.' : 'Pick a second player to overlay them on the bars as an open ring and line them up stat by stat.');
+      el.replaceChildren(mk('p', 'dps-meta', msg));
+      return;
+    }
+    const cp = C.status === 'ok' ? C.data.find((r) => r.key === p.key) : null;
+    const cq = C.status === 'ok' ? C.data.find((r) => r.key === q.key) : null;
+    const head = mk('div', 'dps-cmphead');
+    const clear = mk('button', 'dps-mini', 'Clear'); clear.type = 'button';
+    clear.addEventListener('click', () => { D.cmp = null; D.cmpMiss = null; ['bars', 'cmp', 'trend'].forEach((n) => dash.draw(n)); });
+    head.append(mk('span', 'dps-cmpkey a', p.name), ' vs ', mk('span', 'dps-cmpkey b', q.name + (q.pos !== p.pos ? ' (Pos ' + q.pos + ')' : '')), clear);
+    const note = q.pos !== p.pos ? mk('p', 'dps-mnote', q.name + ' doesn’t qualify at Pos ' + p.pos + ', so their percentiles are against Pos ' + q.pos + ' players.') : null;
+    const t = mk('table', 'dps-table dps-cmptable');
+    const th = mk('thead'); const hr = mk('tr'); hr.append(mk('th', null, 'Stat'), mk('th', null, p.name), mk('th', null, q.name)); th.appendChild(hr);
+    const tb = mk('tbody');
+    D.KEYS[p.pos].concat(['games']).forEach((s) => {
+      const tr = mk('tr');
+      const label = s === 'games' ? 'Games' : D.STAT[s].label;
+      const fmt = s === 'games' ? String : D.STAT[s].f;
+      const cell = (r, c, other) => {
+        const td = mk('td');
+        td.append(mark(mk('span', null, fmt(r[s])), 'stats', s, r.key));
+        if (c && c[s] != null) td.append(mk('small', 'dps-t5rank', ' ' + D.ord(c[s])));
+        if (other && c && other[s] != null && c[s] > other[s]) td.classList.add('dps-better');
+        return td;
+      };
+      tr.append(tip(mk('td', 'l', label), s), cell(p, cp, cq), cell(q, cq, cp));
+      tb.appendChild(tr);
+    });
+    t.append(th, tb);
+    const wrap = mk('div', 'dps-tablewrap'); wrap.appendChild(t);
+    el.replaceChildren(head, ...(note ? [note] : []), wrap);
+  });
+
+  dash.draw('line', (el) => {
+    const p = D.shown(); if (!p) { el.replaceChildren(); return; }
+    const tr = mk('tr'); tr.setAttribute('data-key', p.key);
+    tr.append(mk('td', null, d3.format('.1f')(p.xwin)), mk('td', null, d3.format('.1f')(p.xlane)));
+    ['kills', 'deaths', 'assists', 'kda', 'gpm', 'xpm', 'lh_min', 'denies', 'dmg_min', 'tower_dmg', 'healing', 'stuns', 'teamfight', 'wards', 'stacks', 'hero_pool']
+      .forEach((s) => tr.appendChild(mk('td', null, s === 'stuns' || s === 'teamfight' ? d3.format('.1f')(p[s]) : D.STAT[s].f(p[s]))));
+    el.replaceChildren(tr);
+  });
+
+  dash.draw('heroart', (el) => {
+    const p = D.shown();
+    if (!p || !D.paint(el, p.top_hero, 'big')) { el.hidden = true; el.replaceChildren(); return; }
+    el.hidden = false;
+    el.replaceChildren(mk('span', null, 'Most played · ' + D.heroName(p.top_hero) + ' · ' + p.top_hero_games + ' g'));
+  });
+
+  dash.draw('heroes', (el) => {
+    const H = dash.data('herostats');
+    if (H.status !== 'ok' || !H.data) { el.replaceChildren(); return; }
+    const p = D.shown(); if (!p) { el.replaceChildren(); return; }
+    const rows = H.data.filter((h) => String(h.id) === String(p.id) && h.pos === p.pos).sort((a, b) => b.games - a.games || b.wins - a.wins).slice(0, 8);
+    const max = d3.max(rows, (h) => h.games) || 1;
+    el.replaceChildren(...rows.map((h) => {
+      const tr = mk('tr'); tr.setAttribute('data-key', h.id + ',' + h.pos + ',' + h.hero);
+      const g = mk('td'); const bar = mk('span', 'dps-herobar'); bar.style.width = Math.round(h.games / max * 60) + 'px';
+      g.append(String(h.games), bar);
+      const nm = mk('td', 'dps-herocell'); nm.append(pix(h.hero), link(h.name, () => D.openHero(h.hero)));
+      tr.append(nm, mk('td', 'l', h.usual_pos === 'multi' ? 'Multi' : 'Pos ' + h.usual_pos), g, mk('td', null, h.wins), mk('td', null, d3.format('.1f')(h.winrate)));
+      return tr;
+    }));
+  });
+
+  // Rolling xWin and actual win rate across the player's games at this position.
+  dash.draw('trend-sub', (el) => {
+    const p = D.shown();
+    el.textContent = p ? 'Rolling average over their Pos ' + p.pos + ' games in these dates and opponents, oldest to newest. The dashed line is the Pos ' + p.pos + ' average xWin (' + d3.format('.1f')(p.waa_base) + '%).' : '—';
+  });
+  dash.draw('trend', (el) => {
+    const R = dash.data('pm');
+    if (R.status !== 'ok') return wait(el, R.status, 'Match history');
+    el.classList.remove('dash-skeleton');
+    const p = D.shown(); if (!p) { el.replaceChildren(); return; }
+    const prm = dash.params();
+    const series = (id, pos) => R.data.filter((r) => String(r.id) === String(id) && Number(r.pos) === pos && D.keep(r, prm) && has(r.xwin));
+    const a = series(p.id, p.pos);
+    if (a.length < 6) { el.replaceChildren(mk('p', 'dps-meta', 'Not enough games to draw a trend.')); return; }
+    const w = Math.max(5, Math.min(20, Math.floor(a.length / 4)));
+    const roll = (rs, k) => rs.map((r, i) => { if (i < w - 1) return null; let s = 0; for (let j = i - w + 1; j <= i; j++) s += +rs[j][k]; return s / w * 100; });
+    const q = D.compared();
+    const b = q ? series(q.id, q.pos) : [];
+    const W = 640, H = 200, m = { l: 34, r: 12, t: 10, b: 22 };
+    const n = Math.max(a.length, b.length);
+    const x = d3.scaleLinear().domain([0, n - 1]).range([m.l, W - m.r]);
+    const ax = roll(a, 'xwin'), aw = roll(a, 'win'), bx = b.length >= w ? roll(b, 'xwin') : [];
+    const vals = ax.concat(aw, bx).filter((v) => v != null).concat([p.waa_base]);
+    const lo = Math.max(0, Math.floor((d3.min(vals) - 3) / 10) * 10), hi = Math.min(100, Math.ceil((d3.max(vals) + 3) / 10) * 10);
+    const y = d3.scaleLinear().domain([lo, hi]).range([H - m.b, m.t]);
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('class', 'dps-trend');
+    svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Rolling ' + w + '-game xWin and win rate for ' + p.name);
+    const add = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); if (text != null) e.textContent = text; svg.appendChild(e); return e; };
+    y.ticks(4).forEach((t) => { add('line', { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), class: 'grid' }); add('text', { x: m.l - 6, y: y(t) + 4, 'text-anchor': 'end', class: 'tick' }, t + '%'); });
+    add('line', { x1: m.l, x2: W - m.r, y1: y(p.waa_base), y2: y(p.waa_base), class: 'base' });
+    const path = (vs, cls) => {
+      const d = d3.line().defined((v) => v != null).x((v, i) => x(i)).y((v) => y(v))(vs);
+      if (d) add('path', { d, class: cls });
+    };
+    path(aw, 'win'); if (bx.length) path(bx, 'cmp'); path(ax, 'xw');
+    const li = ax.length - 1;
+    add('circle', { cx: x(li), cy: y(ax[li]), r: 4, class: 'end' });
+    add('text', { x: m.l, y: H - 6, class: 'tick' }, D.fmtDate(a[0].date));
+    add('text', { x: x(li), y: H - 6, 'text-anchor': 'end', class: 'tick' }, D.fmtDate(a[li].date));
+    const key = mk('div', 'dps-trendkey');
+    key.append(mk('span', 'k xw', 'xWin % (' + w + '-game avg)'), mk('span', 'k win', 'Actual win %'));
+    if (bx.length) key.append(mk('span', 'k cmp', q.name + ' xWin %'));
+    el.replaceChildren(svg, key);
+  });
+
+  dash.draw('recent', (el) => {
+    const R = dash.data('pm'), LG = dash.data('leagues');
+    if (R.status !== 'ok') { el.replaceChildren(); if (R.status === 'error') empty(el, 9, 'Match history failed to load.'); return; }
+    const p = D.shown(); if (!p) { el.replaceChildren(); return; }
+    const prm = dash.params();
+    const ln = new Map((LG.status === 'ok' ? LG.data : []).map((l) => [String(l.league), l.name]));
+    const rows = [];
+    for (let i = R.data.length - 1; i >= 0 && rows.length < 10; i--) {
+      const m = R.data[i];
+      if (String(m.id) === String(p.id) && D.keep(m, prm)) rows.push(m);
+    }
+    el.replaceChildren(...rows.map((m) => {
+      const tr = mk('tr'); tr.setAttribute('data-key', m.id + ',' + m.match_id);
+      const won = String(m.win) === '1';
+      const hero = mk('td', 'dps-herocell'); hero.append(pix(m.hero), link(D.heroName(m.hero), () => D.openHero(m.hero)));
+      const opp = mk('td', 'l'); opp.append(teamLink(m.opp)); if (Number(m.opp_tier) === 1) opp.append(mk('span', 'dps-tag', 'T1'));
+      tr.append(mlink(m.match_id, m.date), evcell(m.league, ln), hero, opp, mk('td', null, m.pos),
+        mk('td', won ? 'dps-win' : 'dps-loss', won ? 'W' : 'L'), mk('td', null, m.k + '/' + m.d + '/' + m.a), mk('td', null, has(m.xwin) ? pct(m.xwin * 100) : '—'));
+      return tr;
+    }));
+  });
+
+  // ---------- Home ----------
+  const inRange = (r) => {
+    const prm = dash.params();
+    const from = prm.from || '0000-00-00', to = prm.to || '9999-12-31';
+    return r.end >= from && r.end <= to;
+  };
+  dash.draw('tour-sub', (el) => {
+    const T = dash.data('tournaments');
+    if (T.status !== 'ok') { el.textContent = '—'; return; }
+    const n = T.data.filter(inRange).length;
+    el.textContent = n ? 'Events whose last match falls in the selected dates, newest first (showing ' + Math.min(n, 12) + ' of ' + n + '). The xWin leader is the best average xWin with 5+ games at the event. Not affected by the opponent filter.' : 'No tournaments ended in the selected dates.';
+  });
+  dash.draw('tournaments', (el) => {
+    const T = dash.data('tournaments');
+    if (T.status !== 'ok') { el.replaceChildren(); if (T.status === 'error') empty(el, 7, 'Tournament results failed to load.'); return; }
+    const rows = T.data.filter(inRange).slice(0, 12);
+    const tid = (name) => { const X = dash.data('teams'); const r = X.status === 'ok' ? X.data.find((t) => t.name === name) : null; return r ? r.team : null; };
+    el.replaceChildren(...rows.map((r) => {
+      const tr = mk('tr'); tr.setAttribute('data-key', String(r.league));
+      const live = r.status === 'In progress';
+      const nm = mk('td', 'tn'); nm.append(link(r.name, () => D.openEvent(r.league)));
+      if (String(r.tier1) === '1') nm.appendChild(mk('span', 'dps-tag', 'Tier 1'));
+      if (live) nm.appendChild(mk('span', 'dps-tag dps-live', 'Live'));
+      nm.appendChild(mk('small', null, r.matches + ' games · ' + r.teams + ' teams'));
+      const dates = mk('td', 'l', D.fmtDate(r.start).replace(/, \d{4}$/, '') + ' – ' + D.fmtDate(r.end));
+      const champ = mk('td', 'l dps-champ');
+      if (live) { champ.textContent = 'In progress'; champ.appendChild(mk('small', null, 'Latest series shown')); }
+      else {
+        const ct = tid(r.champion); champ.append(ct ? teamLink(ct, r.champion) : r.champion);
+        const ru = mk('small', null, 'Runner-up: '); const rt = tid(r.runner_up); ru.append(rt ? teamLink(rt, r.runner_up) : r.runner_up); champ.appendChild(ru);
+      }
+      const fin = mk('td', 'l', r.series_a + ' ' + r.series_score + ' ' + r.series_b);
+      const mv = mk('td', 'l');
+      if (r.mvp_id) {
+        const b = link(r.mvp_name, () => D.select(r.mvp_id)); b.setAttribute('aria-label', 'Open ' + r.mvp_name);
+        mv.append(b, mk('span', 'dps-t5rank', ' Pos ' + r.mvp_pos + ' · ' + r.mvp_games + ' g'));
+      } else mv.textContent = '—';
+      const xv = mk('td', null, has(r.mvp_xwin) ? d3.format('.1f')(r.mvp_xwin) : '—');
+      const act = mk('td', 'l');
+      const use = mk('button', 'dps-mini', 'Use dates'); use.type = 'button';
+      use.setAttribute('aria-label', 'Filter the dashboard to ' + r.name + ' dates');
+      use.addEventListener('click', () => D.setRange(r.start, r.end));
+      act.appendChild(use);
+      tr.append(nm, dates, champ, fin, mv, xv, act);
+      return tr;
+    }));
+  });
+
+  dash.draw('top5', (el) => {
+    const S = dash.data('stats');
+    if (S.status !== 'ok') { wait(el, S.status, 'Player data'); return; }
+    el.classList.remove('dash-skeleton');
+    const pos = Number(el.getAttribute('data-pos'));
+    const cur = D.shown();
+    // Established players only: this is their main position and they have a full sample there.
+    const rows = S.data.filter((p) => p.pos === pos && p.main && p.games >= D.SMALL).sort((a, b) => b.xwin - a.xwin || b.games - a.games).slice(0, 5);
+    if (!rows.length) { el.replaceChildren(mk('li', 'dps-t5rank', 'No main-position player has ' + D.SMALL + '+ games here. Widen the dates or include more opponents.')); return; }
+    el.replaceChildren(...rows.map((p, i) => {
+      const li = mk('li');
+      const btn = mk('button', 'dps-t5row' + (cur && cur.key === p.key ? ' on' : ''));
+      btn.type = 'button';
+      btn.setAttribute('aria-label', 'Open ' + p.name + ', xWin ' + p.xwin + '%');
+      const nm = mk('span', 'dps-t5name', p.name);
+      const sub = mk('small', null, (p.team || 'No team') + ' · ' + p.games + ' g');
+      nm.appendChild(sub);
+      const ic = pix(p.top_hero);
+      if (!ic.classList.contains('none')) ic.title = 'Most played: ' + D.heroName(p.top_hero) + ' (' + p.top_hero_games + ' games)';
+      btn.append(mk('span', 'dps-t5rank', String(i + 1)), ic, nm, mark(mk('span', 'dps-t5val', d3.format('.1f')(p.xwin)), 'stats', 'xwin', p.key));
+      btn.addEventListener('click', () => D.select(p.id, p.main ? null : p.pos));
+      li.appendChild(btn);
+      return li;
+    }));
+  });
+
+  dash.draw('board', (el) => {
+    const S = dash.data('stats');
+    if (S.status !== 'ok') { el.replaceChildren(); return; }
+    const s = D.sort, cur = D.shown();
+    let rows = S.data.filter((p) => (D.pos ? String(p.pos) === D.pos : p.main));
+    rows = rows.slice().sort((a, b) => {
+      const x = a[s.k], y = b[s.k];
+      return (typeof x === 'string' ? x.localeCompare(y) : x - y) * s.dir;
+    });
+    el.replaceChildren(...rows.map((p) => {
+      const tr = mk('tr'); tr.setAttribute('data-key', p.key); tr.setAttribute('data-pid', String(p.id)); tr.setAttribute('data-pos', p.main ? '' : String(p.pos));
+      if (cur && cur.key === p.key) tr.className = 'on';
+      const nm = mk('td', null, p.name);
+      if (p.games < D.SMALL) { const t = mk('span', 'dps-ss', ' SS'); t.title = 'Small sample: under ' + D.SMALL + ' games'; nm.appendChild(t); }
+      const tm = mk('td', 'l'); tm.append(p.team_id ? teamLink(p.team_id, p.team || D.teamName(p.team_id)) : (p.team || '—'));
+      tr.append(nm, tm, mk('td', 'l', 'Pos ' + p.pos + ' · ' + p.role), mk('td', null, p.games),
+        mk('td', null, d3.format('.1f')(p.xwin)), mk('td', null, d3.format('+.1f')(p.waa)), mk('td', null, d3.format('.1f')(p.winrate)), mk('td', null, d3.format('.2f')(p.kda)), mk('td', null, p.gpm), mk('td', null, p.xpm),
+        mk('td', null, d3.format(',d')(p.dmg_min)), mk('td', null, d3.format('.1f')(p.wards)));
+      return tr;
+    }));
+  });
+
+  dash.draw('teams-home', (el) => {
+    const T = dash.data('teamagg');
+    if (T.status !== 'ok') { if (T.status === 'error') empty(el, 7, 'Team data failed to load.'); else el.replaceChildren(); return; }
+    const rows = T.data.filter((t) => t.matches >= 5).slice(0, 20);
+    if (!rows.length) { empty(el, 7, 'No team has 5+ games for these dates and opponents.'); return; }
+    el.replaceChildren(...rows.map((t, i) => {
+      const tr = mk('tr'); tr.setAttribute('data-key', String(t.team));
+      const nm = mk('td'); nm.append(mk('span', 'dps-t5rank', (i + 1) + ' '), teamLink(t.team, t.name)); if (t.tier1) nm.append(mk('span', 'dps-tag', 'T1'));
+      const gap = mk('td', t.gap >= 3 ? 'dps-pos' : t.gap <= -3 ? 'dps-neg' : null, d3.format('+.1f')(t.gap));
+      tr.append(nm, mark(mk('td', null, t.elo), 'teamagg', 'elo', t.team, 'team'), mk('td', null, t.wins + '–' + t.losses), mk('td', null, pct(t.winrate)),
+        mark(mk('td', null, pct(t.xwin)), 'teamagg', 'xwin', t.team, 'team'), gap, mk('td', 'l', D.fmtDate(t.last)));
+      return tr;
+    }));
+  });
+
+  dash.draw('heroes-home', (el) => {
+    const H = dash.data('heroagg');
+    if (H.status !== 'ok') { if (H.status === 'error') empty(el, 7, 'Hero data failed to load.'); else el.replaceChildren(); return; }
+    const rows = H.data.slice(0, 15);
+    el.replaceChildren(...rows.map((h) => {
+      const tr = mk('tr'); tr.setAttribute('data-key', String(h.hero));
+      const nm = mk('td', 'dps-herocell'); nm.append(pix(h.hero), link(h.name, () => D.openHero(h.hero)));
+      const bp = mk('td', 'l');
+      if (h.best_id) bp.append(link(h.best_name, () => D.select(h.best_id)), mk('span', 'dps-t5rank', ' ' + pct(h.best_xwin) + ' · ' + h.best_games + ' g'));
+      else bp.textContent = '—';
+      tr.append(nm, mk('td', 'l', 'Pos ' + h.pos + ' · ' + h.pos_share + '%'), mark(mk('td', null, h.games), 'heroagg', 'games', h.hero, 'hero'),
+        mk('td', null, pct(h.pick) + '%'), mk('td', null, pct(h.winrate)), bp);
+      return tr;
+    }));
+  });
+
+  // ---------- Hero page ----------
+  dash.draw('hero-head', (el) => {
+    const H = dash.data('heroagg');
+    if (!D.hero) { el.replaceChildren(); return; }
+    if (H.status !== 'ok') return wait(el, H.status, 'Hero data');
+    el.classList.remove('dash-skeleton');
+    const h = H.data.find((r) => String(r.hero) === String(D.hero));
+    const art = mk('div', 'dps-banart'); art.setAttribute('aria-hidden', 'true'); D.paint(art, D.hero, 'big');
+    const name = mk('h2', 'dps-name', D.heroName(D.hero));
+    const big = mk('div', 'dps-banpix'); D.paint(big, D.hero, 'pixel');
+    const top = mk('div', 'dps-namerow'); const who = mk('div'); who.style.minWidth = '0';
+    who.append(name, mk('div', 'dps-meta', h ? 'Usually Pos ' + h.pos + ' here (' + h.pos_share + '% of games) · ' + h.players + ' different pros' : 'Not picked by a listed pro in these dates and opponents.'));
+    top.append(big, who);
+    const k = mk('div', 'dps-kpis');
+    if (h) {
+      const kpi = (lab, field, txt) => { const d = mk('div', 'dps-kpi'); d.append(mk('span', null, lab), mark(mk('b', null, txt), 'heroagg', field, h.hero, 'hero')); return d; };
+      k.append(kpi('Games', 'games', h.games), kpi('Pick rate', 'pick', pct(h.pick) + '%'), kpi('Win %', 'winrate', pct(h.winrate)), kpi('Record', 'wins', h.wins + '–' + (h.games - h.wins)));
+    }
+    const inner = mk('div', 'dps-baninner'); inner.append(top, k);
+    el.replaceChildren(art, inner);
+  });
+
+  dash.draw('hero-players', (el) => {
+    const R = dash.data('pm'), P = dash.data('players');
+    if (!D.hero) { el.replaceChildren(); return; }
+    if (R.status !== 'ok') { el.replaceChildren(); return; }
+    const prm = dash.params();
+    const pn = new Map((P.status === 'ok' ? P.data : []).map((p) => [String(p.id), p]));
+    const agg = new Map();
+    R.data.forEach((r) => {
+      if (String(r.hero) !== String(D.hero) || !D.keep(r, prm)) return;
+      let a = agg.get(r.id); if (!a) agg.set(r.id, (a = { g: 0, w: 0, xs: 0, xn: 0, pos: {} }));
+      a.g++; a.w += +r.win; a.pos[r.pos] = (a.pos[r.pos] || 0) + 1;
+      if (has(r.xwin)) { a.xs += +r.xwin; a.xn++; }
+    });
+    const rows = [...agg.entries()].filter(([, a]) => a.g >= 3 && a.xn).map(([id, a]) => ({ id, ...a, x: a.xs / a.xn * 100, p: Object.keys(a.pos).sort((x, y) => a.pos[y] - a.pos[x])[0] }))
+      .sort((a, b) => b.x - a.x).slice(0, 15);
+    if (!rows.length) { empty(el, 6, 'No pro has 3+ games on this hero for these dates and opponents.'); return; }
+    el.replaceChildren(...rows.map((r, i) => {
+      const pl = pn.get(String(r.id)) || {};
+      const tr = mk('tr'); tr.setAttribute('data-key', r.id);
+      const nm = mk('td'); nm.append(mk('span', 'dps-t5rank', (i + 1) + ' '), link(pl.name || r.id, () => D.select(r.id)));
+      if (r.g < 10) nm.append(mk('span', 'dps-ss', ' SS'));
+      tr.append(nm, mk('td', 'l', pl.team || '—'), mk('td', null, r.p), mk('td', null, r.g), mk('td', null, pct(r.w / r.g * 100)), mk('td', null, pct(r.x)));
+      return tr;
+    }));
+  });
+
+  // ---------- Team page ----------
+  dash.draw('team-head', (el) => {
+    const T = dash.data('teamagg');
+    if (!D.team) { el.replaceChildren(); return; }
+    if (T.status !== 'ok') return wait(el, T.status, 'Team data');
+    el.classList.remove('dash-skeleton');
+    const t = T.data.find((r) => String(r.team) === String(D.team));
+    const base = D.teamRow(D.team) || {};
+    const name = mk('h2', 'dps-name', (t && t.name) || base.name || 'Team ' + D.team);
+    const meta = mk('div', 'dps-meta');
+    meta.append((base.tag ? base.tag + ' · ' : '') + 'Elo ' + (base.elo || '—') + ' now');
+    if (String(base.tier1) === '1') meta.append(' ', mk('span', 'dps-tag', 'Tier 1'));
+    const k = mk('div', 'dps-kpis six');
+    if (t) {
+      const kpi = (lab, field, txt, cls) => { const d = mk('div', 'dps-kpi' + (cls ? ' ' + cls : '')); d.append(mk('span', null, lab), mark(mk('b', null, txt), 'teamagg', field, t.team, 'team')); return d; };
+      k.append(kpi('Team xWin %', 'xwin', pct(t.xwin), 'hl'), kpi('Win %', 'winrate', pct(t.winrate)), kpi('Record', 'wins', t.wins + '–' + t.losses),
+        kpi('Games', 'matches', t.matches), kpi('Elo', 'elo', t.elo), kpi('Win − xWin', 'gap', d3.format('+.1f')(t.gap)));
+    }
+    const note = mk('div', 'dps-best', t ? 'Team xWin is the average xWin of its listed pros in these games: how often the team’s individual play says it should win.' : 'No games for these dates and opponents.');
+    el.replaceChildren(name, meta, k, note);
+  });
+
+  dash.draw('team-roster', (el) => {
+    const R = dash.data('pm'), P = dash.data('players'), C = dash.data('pctl');
+    if (!D.team || R.status !== 'ok') { el.replaceChildren(); return; }
+    const prm = dash.params();
+    const pn = new Map((P.status === 'ok' ? P.data : []).map((p) => [String(p.id), p]));
+    const agg = new Map();
+    R.data.forEach((r) => {
+      if (String(r.team) !== String(D.team) || !D.keep(r, prm)) return;
+      let a = agg.get(r.id); if (!a) agg.set(r.id, (a = { g: 0, w: 0, xs: 0, xn: 0, ls: 0, ln: 0, pos: {}, last: '' }));
+      a.g++; a.w += +r.win; a.pos[r.pos] = (a.pos[r.pos] || 0) + 1; if (r.date > a.last) a.last = r.date;
+      if (has(r.xwin)) { a.xs += +r.xwin; a.xn++; }
+      if (has(r.xlane)) { a.ls += +r.xlane; a.ln++; }
+    });
+    const rows = [...agg.entries()].filter(([, a]) => a.g >= 3).map(([id, a]) => ({ id, ...a, p: Number(Object.keys(a.pos).sort((x, y) => a.pos[y] - a.pos[x])[0]) }))
+      .sort((a, b) => a.p - b.p || b.g - a.g);
+    if (!rows.length) { empty(el, 7, 'No pro has 3+ games for this team in these dates and opponents.'); return; }
+    const dot = (v) => { const s = mk('span', 'dps-pdot', v == null ? '—' : String(v)); if (v != null) s.style.background = D.color(v / 100); else s.classList.add('none'); return s; };
+    el.replaceChildren(...rows.map((r) => {
+      const pl = pn.get(String(r.id)) || {};
+      const statRow = D.rowsFor(r.id).find((s) => s.pos === r.p);
+      const c = statRow && C.status === 'ok' ? C.data.find((x) => x.key === statRow.key) : null;
+      const tr = mk('tr'); tr.setAttribute('data-key', r.id);
+      const nm = mk('td'); nm.append(link(pl.name || r.id, () => D.select(r.id, r.p)));
+      const pc = mk('td', 'dps-pcells'); pc.append(dot(c ? c.xwin : null), dot(c ? c.xlane : null), dot(c ? c.waa : null));
+      pc.title = 'Percentiles vs Pos ' + r.p + ': xWin, lane xWin, WAA';
+      tr.append(nm, mk('td', null, r.p), mk('td', null, r.g), mk('td', null, pct(r.w / r.g * 100)), mk('td', null, r.xn ? pct(r.xs / r.xn * 100) : '—'),
+        mk('td', null, r.ln ? pct(r.ls / r.ln * 100) : '—'), pc);
+      return tr;
+    }));
+  });
+
+  dash.draw('team-recent', (el) => {
+    const R = dash.data('pm'), LG = dash.data('leagues');
+    if (!D.team || R.status !== 'ok') { el.replaceChildren(); return; }
+    const prm = dash.params();
+    const ln = new Map((LG.status === 'ok' ? LG.data : []).map((l) => [String(l.league), l.name]));
+    const games = new Map();
+    for (let i = R.data.length - 1; i >= 0; i--) {
+      const r = R.data[i];
+      if (String(r.team) !== String(D.team) || !D.keep(r, prm)) continue;
+      let g = games.get(r.match_id);
+      if (!g) { if (games.size >= 15) break; games.set(r.match_id, (g = { r, xs: 0, xn: 0 })); }
+      if (has(r.xwin)) { g.xs += +r.xwin; g.xn++; }
+    }
+    if (!games.size) { empty(el, 6, 'No games for these dates and opponents.'); return; }
+    el.replaceChildren(...[...games.values()].map(({ r, xs, xn }) => {
+      const tr = mk('tr'); tr.setAttribute('data-key', r.match_id);
+      const won = String(r.win) === '1';
+      const opp = mk('td', 'l'); opp.append(teamLink(r.opp)); if (Number(r.opp_tier) === 1) opp.append(mk('span', 'dps-tag', 'T1'));
+      tr.append(mlink(r.match_id, r.date), evcell(r.league, ln), opp, mk('td', null, r.opp_elo),
+        mk('td', won ? 'dps-win' : 'dps-loss', won ? 'W' : 'L'), mk('td', null, xn ? pct(xs / xn * 100) : '—'));
+      return tr;
+    }));
+  });
+
+  dash.draw('patch-chips', (el) => {
+    const P = dash.data('patches'), b = bounds();
+    if (P.status !== 'ok' || !b) { el.replaceChildren(); return; }
+    const prm = dash.params();
+    const cf = prm.from || b.first, ct = prm.to || b.last;
+    const rows = P.data.slice().sort((a, c) => (a.start < c.start ? 1 : -1));
+    el.replaceChildren(...rows.map((p, i) => {
+      const cur = i === 0;
+      const from = p.start, to = cur ? '' : p.end;
+      const btn = mk('button', 'dps-chip', 'Patch ' + p.patch + (cur ? ' (current)' : ''));
+      btn.type = 'button';
+      const on = cf === from && ct === (to || b.last);
+      if (on) btn.classList.add('on');
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.title = D.fmtDate(p.start) + ' to ' + (cur ? 'now' : D.fmtDate(p.end)) + ' · ' + d3.format(',')(+p.matches) + ' games' + (+p.matches < 500 ? ' (still early: few games)' : '');
+      btn.addEventListener('click', () => D.setRange(from, to));
+      return btn;
+    }));
+  });
+
+  dash.draw('movers-sub', (el) => {
+    const M = dash.data('movers');
+    const r = M.status === 'ok' && M.data[0];
+    el.textContent = !r ? 'xWin since the last finished Tier 1 event vs before it, in the selected dates.'
+      : r.since_event ? 'xWin since ' + r.since_event + ' began (' + D.fmtDate(r.since) + ') vs before it. Main position, 8+ games since.'
+      : 'No finished Tier 1 event in these dates, so: last 30 days vs earlier. Main position, 8+ recent games.';
+  });
+  const moverList = (up) => (el) => {
+    const M = dash.data('movers');
+    if (M.status !== 'ok') { el.replaceChildren(); return; }
+    const rows = (up ? M.data.filter((r) => r.delta > 0) : M.data.filter((r) => r.delta < 0).reverse()).slice(0, 4);
+    if (!rows.length) { el.replaceChildren(mk('li', 'dps-meta', 'Not enough recent games. Widen the dates or include more opponents.')); return; }
+    el.replaceChildren(...rows.map((r) => {
+      const li = mk('li');
+      const b = mk('button', 'dps-mover'); b.type = 'button';
+      b.setAttribute('aria-label', 'Open ' + r.name + ', xWin ' + (up ? 'up ' : 'down ') + Math.abs(r.delta) + ' points');
+      const nm = mk('span', 'dps-t5name', r.name);
+      nm.appendChild(mk('small', null, 'Pos ' + r.pos + ' · ' + pct(r.before) + ' → ' + pct(r.recent) + ' · ' + r.recent_games + ' g'));
+      const dv = mark(mk('span', 'dps-delta ' + (up ? 'up' : 'down'), (up ? '▲ ' : '▼ ') + d3.format('.1f')(Math.abs(r.delta))), 'movers', 'delta', r.id, 'id');
+      b.append(pix(r.top_hero), nm, dv);
+      b.addEventListener('click', () => D.select(r.id));
+      li.appendChild(b); return li;
+    }));
+  };
+  dash.draw('risers', moverList(true));
+  dash.draw('fallers', moverList(false));
+
+  // ---------- Tournament page ----------
+  const evRows = (league) => { const R = dash.data('pm'); return R.status === 'ok' ? R.data.filter((r) => String(r.league) === String(league)) : null; };
+  dash.draw('ev-head', (el) => {
+    const T = dash.data('tournaments');
+    if (!D.event) { el.replaceChildren(); return; }
+    if (T.status !== 'ok') return wait(el, T.status, 'Tournament data');
+    el.classList.remove('dash-skeleton');
+    const t = T.data.find((r) => String(r.league) === String(D.event));
+    if (!t) { el.replaceChildren(mk('p', 'dps-meta', 'This event isn’t in the tournament list.')); return; }
+    const live = t.status === 'In progress';
+    const name = mk('h2', 'dps-name', t.name);
+    const meta = mk('div', 'dps-meta', D.fmtDate(t.start) + ' – ' + D.fmtDate(t.end) + ' · ' + t.matches + ' games · ' + t.teams + ' teams');
+    if (String(t.tier1) === '1') meta.append(' ', mk('span', 'dps-tag', 'Tier 1'));
+    if (live) meta.append(' ', mk('span', 'dps-tag dps-live', 'Live'));
+    const k = mk('div', 'dps-kpis');
+    const kpi = (lab, node) => { const d = mk('div', 'dps-kpi'); d.append(mk('span', null, lab)); const v = mk('b'); v.append(node); d.appendChild(v); return d; };
+    const tid = (n) => { const X = dash.data('teams'); const r = X.status === 'ok' ? X.data.find((x) => x.name === n) : null; return r ? r.team : null; };
+    const tl = (n) => { const id = tid(n); return id ? teamLink(id, n) : mk('span', null, n || '—'); };
+    if (live) k.append(kpi('Status', mk('span', null, 'In progress')), kpi('Latest series', mk('span', null, t.series_a + ' ' + t.series_score + ' ' + t.series_b)));
+    else k.append(kpi('Champion', tl(t.champion)), kpi('Runner-up', tl(t.runner_up)), kpi('Final', mk('span', null, t.series_score)));
+    if (t.mvp_id) k.append(kpi('xWin leader', link(t.mvp_name + ' · ' + pct(t.mvp_xwin), () => D.select(t.mvp_id))));
+    const use = mk('button', 'dps-mini', 'Use these dates on the dashboard'); use.type = 'button';
+    use.addEventListener('click', () => D.setRange(t.start, t.end));
+    const note = mk('div', 'dps-best', 'Every game at this event counts here, whatever the date and opponent filters say.');
+    el.replaceChildren(name, meta, k, note, use);
+  });
+  dash.draw('ev-teams', (el) => {
+    const rows = D.event ? evRows(D.event) : null;
+    if (!rows) { el.replaceChildren(); return; }
+    const agg = new Map();
+    rows.forEach((r) => {
+      let a = agg.get(r.team); if (!a) agg.set(r.team, (a = { m: new Map(), xs: 0, xn: 0 }));
+      if (!a.m.has(r.match_id)) a.m.set(r.match_id, +r.win);
+      if (has(r.xwin)) { a.xs += +r.xwin; a.xn++; }
+    });
+    const out = [...agg.entries()].map(([t, a]) => { const w = [...a.m.values()].reduce((s, v) => s + v, 0); return { t, n: a.m.size, w, x: a.xn ? a.xs / a.xn * 100 : null }; })
+      .sort((a, b) => b.w - a.w || (b.w / b.n) - (a.w / a.n));
+    if (!out.length) { empty(el, 5, 'No games with listed pros at this event.'); return; }
+    el.replaceChildren(...out.map((r, i) => {
+      const tr = mk('tr'); tr.setAttribute('data-key', r.t);
+      const nm = mk('td'); nm.append(mk('span', 'dps-t5rank', (i + 1) + ' '), teamLink(r.t));
+      tr.append(nm, mk('td', null, r.w + '–' + (r.n - r.w)), mk('td', null, pct(r.w / r.n * 100)), mk('td', null, r.x == null ? '—' : pct(r.x)));
+      return tr;
+    }));
+  });
+  dash.draw('ev-players', (el) => {
+    const rows = D.event ? evRows(D.event) : null;
+    if (!rows) { el.replaceChildren(); return; }
+    const P = dash.data('players');
+    const pn = new Map((P.status === 'ok' ? P.data : []).map((p) => [String(p.id), p]));
+    const agg = new Map();
+    rows.forEach((r) => {
+      let a = agg.get(r.id); if (!a) agg.set(r.id, (a = { g: 0, w: 0, xs: 0, xn: 0, pos: {}, team: r.team, hero: {} }));
+      a.g++; a.w += +r.win; a.pos[r.pos] = (a.pos[r.pos] || 0) + 1; a.hero[r.hero] = (a.hero[r.hero] || 0) + 1; a.team = r.team;
+      if (has(r.xwin)) { a.xs += +r.xwin; a.xn++; }
+    });
+    const top = (o) => Object.keys(o).sort((x, y) => o[y] - o[x])[0];
+    const out = [...agg.entries()].filter(([, a]) => a.g >= 3 && a.xn).map(([id, a]) => ({ id, ...a, x: a.xs / a.xn * 100, p: top(a.pos), h: top(a.hero) }))
+      .sort((a, b) => b.x - a.x);
+    if (!out.length) { empty(el, 7, 'No pro has 3+ games at this event.'); return; }
+    el.replaceChildren(...out.map((r, i) => {
+      const pl = pn.get(String(r.id)) || {};
+      const tr = mk('tr'); tr.setAttribute('data-key', r.id);
+      const nm = mk('td', 'dps-herocell'); nm.append(mk('span', 'dps-t5rank', String(i + 1)), pix(r.h), link(pl.name || r.id, () => D.select(r.id)));
+      const tm = mk('td', 'l'); tm.append(teamLink(r.team));
+      tr.append(nm, tm, mk('td', null, r.p), mk('td', null, r.g), mk('td', null, pct(r.w / r.g * 100)), mk('td', null, pct(r.x)));
+      return tr;
+    }));
+  });
+
+  dash.draw('refreshlog', (el) => {
+    const L = dash.data('refreshlog');
+    if (L.status !== 'ok') { el.replaceChildren(); return; }
+    el.replaceChildren(...L.data.slice().reverse().slice(0, 8).map((r) => {
+      const tr = mk('tr'); tr.setAttribute('data-key', r.run);
+      tr.append(mk('td', null, r.run), mk('td', null, d3.format(',')(+r.matches)), mk('td', null, d3.format(',')(+r.matches_dropped || 0)),
+        mk('td', null, r.xwin_auc), mk('td', null, r.rep_xwin), mk('td', null, r.tier1_teams));
+      return tr;
+    }));
+  });
+})();
+</script>
+
+</div>
+<footer class="site-foot">
+  <span>Data: <a href="https://www.opendota.com/esports" rel="noopener">OpenDota</a> pro matches, refreshed weekly. Last game: Nov 24, 2026.</span>
+  <span>Hero art and icons © Valve Corporation. Fan project, not affiliated with Valve or OpenDota.</span>
+</footer>
+</body>
+</html>
