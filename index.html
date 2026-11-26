@@ -110,7 +110,7 @@ img { max-width: 100%; }
   const SIZES = {"pm-recent.csv": 2786310, "pm-older.csv": 12119877};
   // Fetch a text file, reporting progress (0-1) against its known size.
   const getText = async (f, onProgress) => {
-    const r = await fetch('data/' + f + '?v=202611260052');
+    const r = await fetch('data/' + f + '?v=202611260059');
     if (!r.ok) throw new Error(f + ' ' + r.status);
     if (!r.body || !onProgress) return r.text();
     const reader = r.body.getReader(), parts = [];
@@ -890,7 +890,7 @@ th[data-tip] { cursor: help; }
     <h2 class="dps-h2">Teams<small>Top 20 by current Elo with 5+ games in these dates and opponents. Team xWin is the average xWin of the team’s pros; Win − xWin shows teams winning more or less than their play suggests. Lane is the gold lead at 10:00; mid-game is the gold gained from 10:00 to 20:00 (0 = typical); Exp. W% is how often teams with that lane and mid-game win. Click a team to open it.</small></h2>
     <div class="dps-tablewrap">
       <table class="dps-table" data-source="teamagg" data-row-key="team">
-        <thead><tr><th data-field="name">Team</th><th data-field="elo" title="Elo rating now. Every team starts at 1500 and gains or loses points with each counted game.">Elo</th><th data-field="wins">Record</th><th data-field="winrate">Win %</th><th data-field="xwin">Team xWin</th><th data-field="gap">Win − xWin</th><th data-field="lane10" title="Average net worth lead at 10:00 (all five players vs the opponents).">Lane 10:00</th><th data-field="swing" title="Gold gained on the opponent from 10:00 to 20:00, adjusted for opponent strength. 0 is a typical team.">Mid-game</th><th data-field="exp_win" title="How often teams with this lane lead and mid-game swing win.">Exp. W%</th><th data-field="draft" title="Draft win %: how often its drafts would win before anyone plays (hero strength, counters, synergy).">Draft</th><th data-field="last" class="l">Last game</th></tr></thead>
+        <thead><tr><th data-field="name">Team</th><th data-field="elo" title="Elo rating now. Every team starts at 1500 and gains or loses points with each counted game.">Elo</th><th data-field="wins">Record</th><th data-field="winrate">Win %</th><th data-field="xwin">Team xWin</th><th data-field="gap">Win − xWin</th><th data-field="lane10" title="Average net worth lead at 10:00 (all five players vs the opponents).">Lane 10:00</th><th data-field="swing" title="Gold gained on the opponent from 10:00 to 20:00, adjusted for opponent strength. 0 is a typical team.">Mid-game</th><th data-field="exp_win" title="How often teams with this lane lead and mid-game swing win.">Exp. W%</th><th data-field="last" class="l">Last game</th></tr></thead>
         <tbody data-draw="teams-home"></tbody>
       </table>
     </div>
@@ -1106,8 +1106,7 @@ th[data-tip] { cursor: help; }
           <li><b>Lane at 10:00</b>: how far ahead the team usually is when lanes end.</li>
           <li><b>Mid-game swing</b>: gold gained or lost from minute 10 to 20, when rotations, smokes and early fights happen. Some teams lose lanes and then take over here.</li>
           <li><b>Expected win %</b>: how often teams with that kind of lane and mid-game usually win.</li>
-          <li><b>Team xWin vs actual record</b>: a team winning much more than its play suggests is either lucky or good at something stats can’t see, like shotcalling.</li>
-          <li><b>Draft win %</b>: how often the team’s drafts would win before the game starts (see below).</li>
+          <li><b>Team xWin vs actual record</b>: a team winning much more than its play suggests is either lucky or good at something stats can’t see, like drafting or shotcalling.</li>
           <li><b>Head to head</b>: pick any two teams from the bar to compare them side by side, with both line-ups and their past meetings.</li>
         </ul>
       </div>
@@ -1124,27 +1123,6 @@ th[data-tip] { cursor: help; }
       </figure>
     </section>
 
-    <section class="dps-card dps-aboutrow">
-      <div class="dps-abouttext">
-        <h3 class="dps-h2">Draft score</h3>
-        <p>How likely your five heroes are to beat their five, <b>before anyone plays</b>. It adds up three things:</p>
-        <ul class="dps-aboutlist">
-          <li><b>Hero strength</b>: how often each hero wins in pro games this patch.</li>
-          <li><b>Counters</b>: each of your heroes against each enemy hero. Does it do better or worse than usual against that hero?</li>
-          <li><b>Synergy</b>: do your heroes do better together than apart?</li>
-        </ul>
-        <p>There are about 16,000 hero pairs, far too many to learn from pro games alone, so counters and synergy come from hundreds of thousands of high-rank public games on the same patch. Hero strength uses only pro games, because pros pick and play heroes differently.</p>
-        <p>Drafts matter less than you might think: the draft score predicts the winner only a little better than a coin flip, while xWin does much better. How the game is played matters far more than the picks.</p>
-      </div>
-      <figure class="dps-aboutfig dps-flow" aria-label="How the draft score is worked out">
-        <div class="dps-flowin">
-          <span>Hero strength · pro games</span><span>Counters · 25 hero-vs-hero pairs</span><span>Synergy · 10 pairs per team</span><span class="adj">counters and synergy from high-rank pubs</span>
-        </div>
-        <div class="dps-flowarrow" aria-hidden="true">&#8595;</div>
-        <div class="dps-flowout"><b>54%</b><span>Draft win %: drafts like this win 54% of the time, before the game starts</span></div>
-      </figure>
-    </section>
-
     <details class="dps-foot" id="notes">
       <summary>Full methodology: how every number is worked out</summary>
       <p>The data holds every OpenDota-tracked game in leagues rated premium or professional, from the first day of The International 2025 to the latest refresh. OpenDota also marks some non-events as professional, so <span data-draw="n-leagues" data-source="scope">—</span> leagues are dropped (open ladders and club leagues running longer than 150 days, in-house leagues with fewer than 4 teams or mostly unregistered teams, and streamer shows), along with single games where either side isn’t a registered team. That removes <span data-draw="n-dropped" data-source="scope">—</span> games. Every stat, position and percentile on the page is recomputed from single matches for the dates and opponents you pick.</p>
@@ -1154,7 +1132,7 @@ th[data-tip] { cursor: help; }
       <p><b>xWin %</b> works like xwOBA. One model per position predicts whether a player's team wins from that player's own match: their gold, XP, last-hit and deny lead over the opposing player in the same position at 10:00, plus whole-game contribution measured as a share of their own team (gold, hero damage, tower damage, healing, kill participation, deaths) and stuns, wards and stacks per minute. Shares of the player's own team are used instead of raw totals because the winning team farms more, so raw totals would mostly measure who won. Four replay stats are also in the model, each measured against the player’s own team: their share of the team’s enemy wards destroyed, how long their observer wards survived, their item timing against the hero’s norm compared with their teammates’, and their share of the team’s time spent dead. Raw versions of these (and gold leads at 20:00) predicted results better but mostly by tracking which team was winning, so they were left out. xWin % is the average prediction over the selected dates. Two adjustments come first. Every stat is measured against what that hero usually does in that position, so a roaming support or a hero that always gives up lane isn’t marked down for it, and a hero that always farms a lot (Nature’s Prophet, Luna, Medusa) doesn’t earn extra credit just for being picked. xWin rates the player, not the pick, so a hero that is weak in the current patch can win less often than its players’ xWin suggests. Then every stat is adjusted for the opponent’s Elo going into the game, so the same lead counts for more against a stronger team. The ± beside xWin % on a player page is its standard error: with fewer games, the true value could be further off.</p>
       <p><b>Replay stats.</b> For nearly every pro game OpenDota also reads the full replay, which adds: lane results (each lane’s combined net worth at 10:00 against the lane it faced; 10% ahead is a win, 10% behind a loss, anything closer a draw), the time of each player’s first 2,000+ gold item and Black King Bar, compared with the usual time for that hero in that position, time spent dead, enemy wards destroyed, how long their observer wards survived (a ward gone before 340 of its 360 seconds counts as destroyed), runes picked up, towers and Roshans last-hit, and first blood. A bar shows “not enough data” when a player has too little of something to rank, such as a carry who never places wards. Deciding games are the last possible game of a series (game 3 of a best-of-3, game 5 of a best-of-5). Consistency is how much a player’s xWin moves from game to game.</p>
       <p><b>Team lane and mid-game.</b> For teams only: the gold lead at 10:00 (all five players), and the mid-game swing, the gold gained or lost against the opponent between 10:00 and 20:00, adjusted for the opponent’s strength so that 0 is a typical team. Teams that win the mid-game do it consistently: a team’s swing in one half of its games matches the other half more closely (0.70) than its win rate does (0.58). Expected W% combines the two into how often teams with that lane and mid-game win (accuracy <span data-draw="m-team" data-source="scope">—</span> AUC). It stays out of player xWin because the mid-game is won by the whole team, not one player.</p>
-      <p><b>Draft score.</b> How likely a team’s five heroes are to beat the other five before anyone plays. It adds up three parts, all in log-odds: <b>hero strength</b>, each hero’s win rate in pro games on that patch (pulled toward its win rate across all patches as if it had 20 more games there, and that toward 50%); <b>counters</b>, for each of the 25 hero-against-hero pairings, how much better that hero does against that enemy than the two strengths predict; and <b>synergy</b>, the same for the 10 pairs of heroes on each team. Hero strength comes only from pro games, because pros pick and play heroes differently. Counters and synergy come from high-rank public games on the same patch (OpenDota, average rank Divine 5 and up, ranked All Pick; <span data-draw="m-dpub" data-source="scope">—</span> games), because pro games are far too few to measure pairs: split the pro games in half and the halves agree on a pairing at only r = <span data-draw="m-dsplit" data-source="scope">—</span>, about as well as pub and pro agree (r = <span data-draw="m-dtrans" data-source="scope">—</span>). Letting pro games pull each pairing away from its pub value did no better on unseen games, so pairings use pub games alone. A logistic regression on pro games sets how much each part counts, and each game is scored with its own result left out. On games it never saw, the draft score’s AUC is <span data-draw="m-dauc" data-source="scope">—</span> (hero strength alone: <span data-draw="m-dauc0" data-source="scope">—</span>; player xWin: <span data-draw="m-auc2" data-source="scope">—</span>): drafts matter, but much less than how the game is played. A team’s Draft win % is the average over its games. The <b>head-to-head</b> page puts two teams’ numbers side by side, with a one-game win chance from current Elo: 1 ÷ (1 + 10^((Elo B − Elo A) ÷ 400)).</p>
+      <p>The <b>head-to-head</b> page puts two teams’ numbers side by side, with a one-game win chance from current Elo: 1 ÷ (1 + 10^((Elo B − Elo A) ÷ 400)).</p>
       <p><b>Closing and late games.</b> Leads closed is the share of games a player’s team won after being 5,000+ gold ahead at 20:00 (about 92% across all pro games); comebacks are wins from 5,000+ behind (about 9%). These lean on the whole team, so they are most telling on team pages. Late-game xWin is xWin in games of 45 minutes or more; scaling is that minus xWin in games under 30 minutes. Bars drawn faded and striped rest on a small sample: under 30 games overall, or too few of the games that stat needs (for example fewer than 12 long games or 15 games with a big lead).</p>
       <p><b>Small samples.</b> A player’s xWin % and lane xWin % are pulled toward their position’s average, as if they had also played a set number of perfectly average games: about 20–40, measured each week from how much one player’s games vary compared with how much players truly differ. With 20 games, a raw 66% might show as about 60%; with 100 games it barely moves. Player pages show the raw figure under the big number. WAA uses the raw figures, since a short sample already earns less of it.</p>
       <p><b>Lane xWin %</b> uses only the 10:00 numbers, so it rates the early game. <b>Wins Above Average (WAA)</b> adds up, over every game, the player's xWin minus the average xWin of every game at their position in the selected dates and opponents, by anyone who played it (regulars or not). An average player at the position scores 0. Like WAR, it counts: playing more games well adds up. The model separates good and bad support play less sharply than core play, so WAA spreads wider for cores. Compare WAA within a position.</p>
@@ -1193,10 +1171,10 @@ th[data-tip] { cursor: help; }
         </div>
       </section>
       <section class="dps-card">
-        <h2 class="dps-h2">Past meetings<small>Last 20 in these dates and opponents. Draft A is Team A’s draft win % for that game; xWin is each team’s average. Click a date to open the match on OpenDota.</small></h2>
+        <h2 class="dps-h2">Past meetings<small>Last 20 in these dates and opponents. xWin is each team’s average. Click a date to open the match on OpenDota.</small></h2>
         <div class="dps-tablewrap">
           <table class="dps-table">
-            <thead><tr><th>Date</th><th class="l">Event</th><th class="l">Winner</th><th>Draft A</th><th>xWin A</th><th>xWin B</th></tr></thead>
+            <thead><tr><th>Date</th><th class="l">Event</th><th class="l">Winner</th><th>xWin A</th><th>xWin B</th></tr></thead>
             <tbody data-draw="h2h-games" data-source="pm"></tbody>
           </table>
         </div>
@@ -1260,7 +1238,7 @@ th[data-tip] { cursor: help; }
         <h2 class="dps-h2">Recent games<small>Last 15 in these dates and opponents. Opp. Elo is the opponent’s rating going into the game; xWin is the team’s average for that game. Click a date to open the match on OpenDota.</small></h2>
         <div class="dps-tablewrap">
           <table class="dps-table" data-source="pm" data-row-key="match_id">
-            <thead><tr><th data-field="date">Date</th><th data-field="league" class="l">League</th><th data-field="opp" class="l">Opponent</th><th data-field="opp_elo">Opp. Elo</th><th data-field="win">W/L</th><th data-field="draft" title="This team’s draft win %: how often its five heroes would beat the other five, before anyone plays.">Draft</th><th data-field="xwin">xWin</th></tr></thead>
+            <thead><tr><th data-field="date">Date</th><th data-field="league" class="l">League</th><th data-field="opp" class="l">Opponent</th><th data-field="opp_elo">Opp. Elo</th><th data-field="win">W/L</th><th data-field="xwin">xWin</th></tr></thead>
             <tbody data-draw="team-recent" data-source="pm"></tbody>
           </table>
         </div>
@@ -1274,6 +1252,7 @@ window.DPS = window.DPS || { sel: null, selPos: null, cmp: null, sort: { k: 'waa
 if (!window.DPS.sortTouched) window.DPS.sort = { k: 'waa', dir: -1 };
 window.DPS.POS = { 1: 'Carry', 2: 'Mid', 3: 'Offlane', 4: 'Soft support', 5: 'Hard support' };
 window.DPS.SMALL = 30;
+window.DPS.SHOW_DRAFT = false;  // draft score: computed, not shown until it is developed further
 window.DPS.OPP = { 1: 'Tier 1 teams', 2: 'Tier 1 + Tier 2', 3: 'All pro teams' };
 window.DPS.STAT = {
   xwin:      { label: 'xWin %',              f: (v) => d3.format('.1f')(v) + '%', d: 'Expected win rate from this player’s own stats, adjusted for their hero and the opponent’s strength. Like xwOBA: what their play was worth, whatever their team did. Small samples are pulled toward the position average.' },
@@ -2635,7 +2614,7 @@ dash.calc('teamagg', {
         mark(mk('td', null, pct(t.xwin)), 'teamagg', 'xwin', t.team, 'team'), gap,
         mark(mk('td', null, kgold(t.lane10)), 'teamagg', 'lane10', t.team, 'team'), mark(mk('td', t.swing >= 1000 ? 'dps-pos' : t.swing <= -1000 ? 'dps-neg' : null, kgold(t.swing)), 'teamagg', 'swing', t.team, 'team'),
         mark(mk('td', null, t.exp_win == null ? '—' : pct(t.exp_win)), 'teamagg', 'exp_win', t.team, 'team'),
-        mark(mk('td', t.draft >= 52 ? 'dps-pos' : t.draft != null && t.draft <= 48 ? 'dps-neg' : null, t.draft == null ? '—' : pct(t.draft)), 'teamagg', 'draft', t.team, 'team'), mk('td', 'l', D.fmtDate(t.last)));
+        ...(D.SHOW_DRAFT ? [mark(mk('td', t.draft >= 52 ? 'dps-pos' : t.draft != null && t.draft <= 48 ? 'dps-neg' : null, t.draft == null ? '—' : pct(t.draft)), 'teamagg', 'draft', t.team, 'team')] : []), mk('td', 'l', D.fmtDate(t.last)));
       return tr;
     }));
   });
@@ -2723,10 +2702,10 @@ dash.calc('teamagg', {
         kpi('Games', 'matches', t.matches), kpi('Elo', 'elo', t.elo), kpi('Win − xWin', 'gap', d3.format('+.1f')(t.gap)),
         kpi('Leads closed', 'lead_w', t.lead_n ? t.lead_w + '/' + t.lead_n : '—'), kpi('Comebacks', 'comeback_w', t.comeback_n ? t.comeback_w + '/' + t.comeback_n : '—'),
         kpi('Lane lead 10:00', 'lane10', kgold(t.lane10)), kpi('Mid-game swing', 'swing', kgold(t.swing)),
-        kpi('Expected W% (lane + mid)', 'exp_win', t.exp_win == null ? '—' : pct(t.exp_win)),
-        kpi('Draft win %', 'draft', t.draft == null ? '—' : pct(t.draft)));
+        kpi('Expected W% (lane + mid)', 'exp_win', t.exp_win == null ? '—' : pct(t.exp_win)));
+      if (D.SHOW_DRAFT) k.append(kpi('Draft win %', 'draft', t.draft == null ? '—' : pct(t.draft)));
     }
-    const note = mk('div', 'dps-best', t ? 'Team xWin is the average xWin of its listed pros in these games: how often the team’s individual play says it should win. Expected W% (lane + mid) is how often teams with this lane lead and mid-game swing win. Draft win % is how often its drafts (hero strength, counters and synergy) would win before anyone plays.' + (t.draft_pct != null ? ' Its drafts rank in the ' + D.ord(t.draft_pct) + ' percentile.' : '') : 'No games for these dates and opponents.');
+    const note = mk('div', 'dps-best', t ? 'Team xWin is the average xWin of its listed pros in these games: how often the team’s individual play says it should win. Expected W% (lane + mid) is how often teams with this lane lead and mid-game swing win.' + (D.SHOW_DRAFT ? ' Draft win % is how often its drafts (hero strength, counters and synergy) would win before anyone plays.' + (t.draft_pct != null ? ' Its drafts rank in the ' + D.ord(t.draft_pct) + ' percentile.' : '') : '') : 'No games for these dates and opponents.');
     // Head to head against its most recent opponent.
     const R0 = dash.data('pm');
     let lastOpp = null, lastD = '';
@@ -2796,7 +2775,7 @@ dash.calc('teamagg', {
       const won = String(r.win) === '1';
       const opp = mk('td', 'l'); opp.append(teamLink(r.opp)); if (Number(r.opp_tier) === 1) opp.append(mk('span', 'dps-tag', 'T1'));
       tr.append(mlink(r.match_id, r.date), evcell(r.league, ln), opp, mk('td', null, r.opp_elo),
-        mk('td', won ? 'dps-win' : 'dps-loss', won ? 'W' : 'L'), mk('td', null, has(r.draft) ? pct(r.draft * 100) : '—'), mk('td', null, xn ? pct(xs / xn * 100) : '—'));
+        mk('td', won ? 'dps-win' : 'dps-loss', won ? 'W' : 'L'), ...(D.SHOW_DRAFT ? [mk('td', null, has(r.draft) ? pct(r.draft * 100) : '—')] : []), mk('td', null, xn ? pct(xs / xn * 100) : '—'));
       return tr;
     }));
   });
@@ -2854,7 +2833,7 @@ dash.calc('teamagg', {
     const rows = [
       ['Team xWin %', (t) => t && t.xwin, (v) => pct(v) + '%', 'How often each team’s individual play says it should win.'],
       ['Win %', (t) => t && t.winrate, (v) => pct(v) + '%', 'Actual results in these games.'],
-      ['Draft win %', (t) => t && t.draft, (v) => pct(v) + '%', 'How often its drafts would win before anyone plays.'],
+      ...(D.SHOW_DRAFT ? [['Draft win %', (t) => t && t.draft, (v) => pct(v) + '%', 'How often its drafts would win before anyone plays.']] : []),
       ['Lane lead 10:00', (t) => t && t.lane10, kgold, 'Average gold lead when lanes end.'],
       ['Mid-game swing', (t) => t && t.swing, kgold, 'Gold gained from 10:00 to 20:00 (0 = typical).'],
       ['Expected W% (lane + mid)', (t) => t && t.exp_win, (v) => pct(v) + '%', 'How often teams with that lane and mid-game win.'],
@@ -2935,7 +2914,7 @@ dash.calc('teamagg', {
     el.replaceChildren(...list.map((g) => {
       const tr = mk('tr'); tr.setAttribute('data-key', g.id);
       const win = mk('td', 'l'); win.append(teamLink(g.aWon ? ia : ib));
-      tr.append(mlink(g.id, g.r.date), evcell(g.r.league, ln), win, mk('td', g.draft != null && g.draft >= 0.55 ? 'dps-pos' : g.draft != null && g.draft <= 0.45 ? 'dps-neg' : null, g.draft == null ? '—' : pct(g.draft * 100)),
+      tr.append(mlink(g.id, g.r.date), evcell(g.r.league, ln), win, ...(D.SHOW_DRAFT ? [mk('td', g.draft != null && g.draft >= 0.55 ? 'dps-pos' : g.draft != null && g.draft <= 0.45 ? 'dps-neg' : null, g.draft == null ? '—' : pct(g.draft * 100))] : []),
         mk('td', null, g.an ? pct(g.ax / g.an * 100) : '—'), mk('td', null, g.bn ? pct(g.bx / g.bn * 100) : '—'));
       return tr;
     }));
