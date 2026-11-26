@@ -110,7 +110,7 @@ img { max-width: 100%; }
   const SIZES = {"pm-recent.csv": 2883932, "pm-older.csv": 12546771};
   // Fetch a text file, reporting progress (0-1) against its known size.
   const getText = async (f, onProgress) => {
-    const r = await fetch('data/' + f + '?v=202611260115');
+    const r = await fetch('data/' + f + '?v=202611260118');
     if (!r.ok) throw new Error(f + ' ' + r.status);
     if (!r.body || !onProgress) return r.text();
     const reader = r.body.getReader(), parts = [];
@@ -698,6 +698,15 @@ th[data-tip] { cursor: help; }
 .dps-kpi.dps-test > span::after { content: ""; }
 td.dps-testcell { color: var(--color-fg-muted); }
 
+/* ---- About: WAR section ---- */
+.dps-warhead { font: 600 11px var(--dps-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--color-fg-muted); }
+.dps-warsplit { display: flex; gap: 4px; flex-wrap: wrap; }
+.dps-warsplit span { flex: 1 1 0; min-width: 64px; display: grid; gap: 1px; padding: 6px 8px; border-radius: 2px; font: 600 11.5px var(--dps-mono);
+  background: color-mix(in srgb, var(--dps-red) 16%, transparent); box-shadow: inset 0 -3px 0 var(--dps-red); color: var(--color-fg); }
+.dps-warsplit span b { font: 700 12.5px var(--dps-sans, inherit); }
+.dps-about ol.dps-aboutlist { padding-left: 20px; }
+.dps-h2 .dps-testtag { vertical-align: 3px; margin-right: 4px; }
+
 /* ---- 8-bit hero sprites: transparent, outlined, no frame; they hop when you point at them ---- */
 .dps-pix, .dps-table .dps-pix, .dps-t5list li:first-child .dps-pix, .dps-banpix { box-shadow: none; background-color: transparent;
   filter: drop-shadow(2px 2px 0 color-mix(in srgb, var(--color-fg) 22%, transparent)); }
@@ -1062,7 +1071,7 @@ td.dps-testcell { color: var(--color-fg-muted); }
           <li>It counts up, like WAR in baseball: playing a lot <i>and</i> playing well both raise it.</li>
         </ul>
         <p>WAA is fair <b>within</b> a position. It can’t fairly compare a Pos 5 with a Pos 1, because each position has its own model and its own scale.</p>
-        <p><span class="dps-tag dps-testtag">Test</span> <b>WAR</b> is our experiment to fix that: one scale for every position, like baseball WAR comparing a hitter with a pitcher. Each game’s win chance is split between the five players so it adds up and is never counted twice, and players are measured against a stand-in rather than the average. How much a stand-in costs comes from real games where teams played one: they won about 2.5 points less often than usual. It is still being tested, so treat it as a work in progress.</p>
+        <p><b>WAR</b> (below) is our test of a version that can.</p>
       </div>
       <figure class="dps-aboutfig dps-waa" aria-label="WAA adds up game by game">
         <div class="dps-waagames">
@@ -1073,7 +1082,35 @@ td.dps-testcell { color: var(--color-fg-muted); }
       </figure>
     </section>
 
-    <section class="dps-card dps-aboutrow flip">
+    <section class="dps-card dps-aboutrow flip" id="war-about">
+      <div class="dps-abouttext">
+        <h3 class="dps-h2"><span class="dps-tag dps-testtag">Test</span> WAR: one scale for every position</h3>
+        <p>WAA can’t compare a Pos 5 with a Pos 1. WAR tries to, the way baseball WAR compares a hitter with a pitcher: everyone is measured in the same thing, <b>wins</b>, against the same baseline, <b>a stand-in</b>.</p>
+        <ol class="dps-aboutlist">
+          <li><b>How much does each position matter?</b> One model looks at all five players on a team at once and learns how much each position’s play moves the result once the other four are known. Carries and mids swing games the most.</li>
+          <li><b>What is a stand-in worth?</b> When teams play a part-timer in one slot, they win about 2.5 points less often than usual. That cost is the baseline at every position.</li>
+          <li><b>Split each game fairly.</b> Take the team’s win chance with its five players, minus its chance with five stand-ins. Share the difference between the five so that it adds up exactly: a win is never counted twice.</li>
+          <li><b>Add it up.</b> A player’s WAR is their share summed over every game.</li>
+        </ol>
+        <p>Regulars at every position end up with a similar typical WAR. The best carries still rank highest, because a carry’s game swings further. It is labelled a test while we check it against more seasons.</p>
+      </div>
+      <figure class="dps-aboutfig dps-warfig" aria-label="WAR for one real game">
+        <div class="dps-warhead">GamerLegion beat 1win · Oct 24, 2026</div>
+        <div class="dps-pacerow"><span>Win chance with five stand-ins</span><b>40%</b></div>
+        <div class="dps-pacerow"><span>With GamerLegion’s five, as they played</span><b>79%</b></div>
+        <div class="dps-pacerow total"><span>Wins to share</span><b>+0.39</b></div>
+        <div class="dps-warsplit">
+          <span class="up" style="flex-grow:21"><b>Yuma</b> Sven · +0.21</span>
+          <span class="up" style="flex-grow:7"><b>RCY</b> +0.06</span>
+          <span class="up" style="flex-grow:6"><b>Fayde</b> +0.06</span>
+          <span class="up" style="flex-grow:5"><b>Speeed</b> +0.05</span>
+          <span class="up" style="flex-grow:3"><b>Bignum</b> +0.01</span>
+        </div>
+        <figcaption>Yuma’s Sven (78% xWin) gets the biggest share. Bignum’s Techies (45% xWin) still beat a stand-in, just barely. Add a player’s shares over every game and you have their WAR.</figcaption>
+      </figure>
+    </section>
+
+    <section class="dps-card dps-aboutrow">
       <div class="dps-abouttext">
         <h3 class="dps-h2">Movers</h3>
         <p>Who is playing better or worse since the last big tournament started, compared with before it.</p>
@@ -1090,7 +1127,7 @@ td.dps-testcell { color: var(--color-fg-muted); }
       </figure>
     </section>
 
-    <section class="dps-card dps-aboutrow">
+    <section class="dps-card dps-aboutrow flip">
       <div class="dps-abouttext">
         <h3 class="dps-h2">Late game and consistency</h3>
         <ul class="dps-aboutlist">
@@ -1108,7 +1145,7 @@ td.dps-testcell { color: var(--color-fg-muted); }
       </figure>
     </section>
 
-    <section class="dps-card dps-aboutrow flip">
+    <section class="dps-card dps-aboutrow">
       <div class="dps-abouttext">
         <h3 class="dps-h2">Team stats</h3>
         <ul class="dps-aboutlist">
