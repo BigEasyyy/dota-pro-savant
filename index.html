@@ -107,10 +107,10 @@ img { max-width: 100%; }
       });
     }
   };
-  const SIZES = {"pm-recent.csv": 2706656, "pm-older.csv": 11771435};
+  const SIZES = {"pm-recent.csv": 2786310, "pm-older.csv": 12119877};
   // Fetch a text file, reporting progress (0-1) against its known size.
   const getText = async (f, onProgress) => {
-    const r = await fetch('data/' + f + '?v=202611252139');
+    const r = await fetch('data/' + f + '?v=202611260052');
     if (!r.ok) throw new Error(f + ' ' + r.status);
     if (!r.body || !onProgress) return r.text();
     const reader = r.body.getReader(), parts = [];
@@ -665,6 +665,33 @@ th[data-tip] { cursor: help; }
 .dps-about #notes[open] summary { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--color-fg); }
 .dps-about #notes p { max-width: 75ch; color: var(--color-fg); line-height: 1.55; }
 
+/* ---- Head to head ---- */
+.dps-h2h { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.dps-h2h > * { min-width: 0; }
+.dps-h2htab { width: 100%; table-layout: fixed; }
+.dps-h2htab th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dps-h2htab td.m span { display: block; white-space: normal; line-height: 1.2; }
+@media (max-width: 600px) { .dps-h2htab td.a, .dps-h2htab th.a, .dps-h2htab td.b, .dps-h2htab th.b { width: 24%; } .dps-h2hteam b { font-size: 1.8rem; } .dps-h2htab td.m { font-size: 11px; } }
+.dps-h2hpick { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; }
+.dps-h2hsel { display: grid; gap: 4px; min-width: 0; }
+.dps-h2hsel select { font: inherit; padding: 6px 8px; border-radius: 3px; border: 1px solid var(--color-border-line); background: var(--color-panel); color: var(--color-fg); max-width: 100%; }
+.dps-h2hvs { font: 700 1.2rem/1 var(--dps-display); text-transform: uppercase; color: var(--color-fg-muted); padding-bottom: 8px; }
+.dps-h2hswap { padding-bottom: 8px; }
+.dps-h2htop { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); align-items: center; gap: 14px; }
+.dps-h2hteam { display: grid; gap: 2px; min-width: 0; }
+.dps-h2hteam.b { text-align: right; justify-items: end; }
+.dps-h2hteam b { font: 700 2.4rem/1 var(--dps-display); }
+.dps-h2hteam.a b { color: var(--dps-red); } .dps-h2hteam.b b { color: var(--dps-blue); }
+.dps-h2hmeter { height: 14px; border-radius: 2px; background: var(--dps-blue); overflow: hidden; }
+.dps-h2hmeter i { display: block; height: 100%; background: var(--dps-red); }
+@media (max-width: 600px) { .dps-h2htop { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .dps-h2hmeter { grid-column: 1 / -1; grid-row: 2; } }
+.dps-h2htab td.a, .dps-h2htab th.a { text-align: right; width: 34%; }
+.dps-h2htab td.b, .dps-h2htab th.b { text-align: left; width: 34%; }
+.dps-h2htab td.m { text-align: center; color: var(--color-fg-muted); font-size: 12px; cursor: help; }
+.dps-h2htab td.win { font-weight: 700; }
+.dps-h2htab td.a.win { box-shadow: inset -3px 0 0 var(--dps-red); } .dps-h2htab td.b.win { box-shadow: inset 3px 0 0 var(--dps-blue); }
+.dps-h2hpos { color: var(--color-fg-muted); font: 600 11px var(--dps-mono); text-transform: uppercase; }
+
 /* ---- 8-bit hero sprites: transparent, outlined, no frame; they hop when you point at them ---- */
 .dps-pix, .dps-table .dps-pix, .dps-t5list li:first-child .dps-pix, .dps-banpix { box-shadow: none; background-color: transparent;
   filter: drop-shadow(2px 2px 0 color-mix(in srgb, var(--color-fg) 22%, transparent)); }
@@ -750,6 +777,7 @@ th[data-tip] { cursor: help; }
       <button type="button" class="dps-navbtn" data-nav="teams-home">Teams</button>
       <button type="button" class="dps-navbtn" data-nav="heroes-home">Heroes</button>
       <button type="button" class="dps-navbtn" data-nav="tournaments">Events</button>
+      <button type="button" class="dps-navbtn" data-nav="h2h">Head to head</button>
       <button type="button" class="dps-navbtn" data-nav="about">About</button>
     </div>
     <button type="button" class="dps-filtersum" id="dps-filtersum" aria-controls="dates" aria-expanded="true" title="Change dates, opponents and minimum games">
@@ -862,7 +890,7 @@ th[data-tip] { cursor: help; }
     <h2 class="dps-h2">Teams<small>Top 20 by current Elo with 5+ games in these dates and opponents. Team xWin is the average xWin of the team’s pros; Win − xWin shows teams winning more or less than their play suggests. Lane is the gold lead at 10:00; mid-game is the gold gained from 10:00 to 20:00 (0 = typical); Exp. W% is how often teams with that lane and mid-game win. Click a team to open it.</small></h2>
     <div class="dps-tablewrap">
       <table class="dps-table" data-source="teamagg" data-row-key="team">
-        <thead><tr><th data-field="name">Team</th><th data-field="elo" title="Elo rating now. Every team starts at 1500 and gains or loses points with each counted game.">Elo</th><th data-field="wins">Record</th><th data-field="winrate">Win %</th><th data-field="xwin">Team xWin</th><th data-field="gap">Win − xWin</th><th data-field="lane10" title="Average net worth lead at 10:00 (all five players vs the opponents).">Lane 10:00</th><th data-field="swing" title="Gold gained on the opponent from 10:00 to 20:00, adjusted for opponent strength. 0 is a typical team.">Mid-game</th><th data-field="exp_win" title="How often teams with this lane lead and mid-game swing win.">Exp. W%</th><th data-field="last" class="l">Last game</th></tr></thead>
+        <thead><tr><th data-field="name">Team</th><th data-field="elo" title="Elo rating now. Every team starts at 1500 and gains or loses points with each counted game.">Elo</th><th data-field="wins">Record</th><th data-field="winrate">Win %</th><th data-field="xwin">Team xWin</th><th data-field="gap">Win − xWin</th><th data-field="lane10" title="Average net worth lead at 10:00 (all five players vs the opponents).">Lane 10:00</th><th data-field="swing" title="Gold gained on the opponent from 10:00 to 20:00, adjusted for opponent strength. 0 is a typical team.">Mid-game</th><th data-field="exp_win" title="How often teams with this lane lead and mid-game swing win.">Exp. W%</th><th data-field="draft" title="Draft win %: how often its drafts would win before anyone plays (hero strength, counters, synergy).">Draft</th><th data-field="last" class="l">Last game</th></tr></thead>
         <tbody data-draw="teams-home"></tbody>
       </table>
     </div>
@@ -1020,7 +1048,7 @@ th[data-tip] { cursor: help; }
     <section class="dps-card dps-aboutrow">
       <div class="dps-abouttext">
         <h3 class="dps-h2">WAA: Wins Above Average</h3>
-        <p>Your xWin compared with an average player in your position, <b>added up over every game you played</b>.</p>
+        <p>Your xWin compared with the average of <b>everyone</b> who played your position in those games (regulars, stand-ins and smaller teams alike), <b>added up over every game you played</b>.</p>
         <ul class="dps-aboutlist">
           <li><b>+10</b>: your play was worth about 10 more wins than an average player would have given your team.</li>
           <li><b>0</b>: average.</li>
@@ -1078,7 +1106,9 @@ th[data-tip] { cursor: help; }
           <li><b>Lane at 10:00</b>: how far ahead the team usually is when lanes end.</li>
           <li><b>Mid-game swing</b>: gold gained or lost from minute 10 to 20, when rotations, smokes and early fights happen. Some teams lose lanes and then take over here.</li>
           <li><b>Expected win %</b>: how often teams with that kind of lane and mid-game usually win.</li>
-          <li><b>Team xWin vs actual record</b>: a team winning much more than its play suggests is either lucky or good at something stats can’t see, like drafting or shotcalling.</li>
+          <li><b>Team xWin vs actual record</b>: a team winning much more than its play suggests is either lucky or good at something stats can’t see, like shotcalling.</li>
+          <li><b>Draft win %</b>: how often the team’s drafts would win before the game starts (see below).</li>
+          <li><b>Head to head</b>: pick any two teams from the bar to compare them side by side, with both line-ups and their past meetings.</li>
         </ul>
       </div>
       <figure class="dps-aboutfig dps-quad" aria-label="Team styles by lane and mid-game">
@@ -1094,6 +1124,27 @@ th[data-tip] { cursor: help; }
       </figure>
     </section>
 
+    <section class="dps-card dps-aboutrow">
+      <div class="dps-abouttext">
+        <h3 class="dps-h2">Draft score</h3>
+        <p>How likely your five heroes are to beat their five, <b>before anyone plays</b>. It adds up three things:</p>
+        <ul class="dps-aboutlist">
+          <li><b>Hero strength</b>: how often each hero wins in pro games this patch.</li>
+          <li><b>Counters</b>: each of your heroes against each enemy hero. Does it do better or worse than usual against that hero?</li>
+          <li><b>Synergy</b>: do your heroes do better together than apart?</li>
+        </ul>
+        <p>There are about 16,000 hero pairs, far too many to learn from pro games alone, so counters and synergy come from hundreds of thousands of high-rank public games on the same patch. Hero strength uses only pro games, because pros pick and play heroes differently.</p>
+        <p>Drafts matter less than you might think: the draft score predicts the winner only a little better than a coin flip, while xWin does much better. How the game is played matters far more than the picks.</p>
+      </div>
+      <figure class="dps-aboutfig dps-flow" aria-label="How the draft score is worked out">
+        <div class="dps-flowin">
+          <span>Hero strength · pro games</span><span>Counters · 25 hero-vs-hero pairs</span><span>Synergy · 10 pairs per team</span><span class="adj">counters and synergy from high-rank pubs</span>
+        </div>
+        <div class="dps-flowarrow" aria-hidden="true">&#8595;</div>
+        <div class="dps-flowout"><b>54%</b><span>Draft win %: drafts like this win 54% of the time, before the game starts</span></div>
+      </figure>
+    </section>
+
     <details class="dps-foot" id="notes">
       <summary>Full methodology: how every number is worked out</summary>
       <p>The data holds every OpenDota-tracked game in leagues rated premium or professional, from the first day of The International 2025 to the latest refresh. OpenDota also marks some non-events as professional, so <span data-draw="n-leagues" data-source="scope">—</span> leagues are dropped (open ladders and club leagues running longer than 150 days, in-house leagues with fewer than 4 teams or mostly unregistered teams, and streamer shows), along with single games where either side isn’t a registered team. That removes <span data-draw="n-dropped" data-source="scope">—</span> games. Every stat, position and percentile on the page is recomputed from single matches for the dates and opponents you pick.</p>
@@ -1103,9 +1154,10 @@ th[data-tip] { cursor: help; }
       <p><b>xWin %</b> works like xwOBA. One model per position predicts whether a player's team wins from that player's own match: their gold, XP, last-hit and deny lead over the opposing player in the same position at 10:00, plus whole-game contribution measured as a share of their own team (gold, hero damage, tower damage, healing, kill participation, deaths) and stuns, wards and stacks per minute. Shares of the player's own team are used instead of raw totals because the winning team farms more, so raw totals would mostly measure who won. Four replay stats are also in the model, each measured against the player’s own team: their share of the team’s enemy wards destroyed, how long their observer wards survived, their item timing against the hero’s norm compared with their teammates’, and their share of the team’s time spent dead. Raw versions of these (and gold leads at 20:00) predicted results better but mostly by tracking which team was winning, so they were left out. xWin % is the average prediction over the selected dates. Two adjustments come first. Every stat is measured against what that hero usually does in that position, so a roaming support or a hero that always gives up lane isn’t marked down for it, and a hero that always farms a lot (Nature’s Prophet, Luna, Medusa) doesn’t earn extra credit just for being picked. xWin rates the player, not the pick, so a hero that is weak in the current patch can win less often than its players’ xWin suggests. Then every stat is adjusted for the opponent’s Elo going into the game, so the same lead counts for more against a stronger team. The ± beside xWin % on a player page is its standard error: with fewer games, the true value could be further off.</p>
       <p><b>Replay stats.</b> For nearly every pro game OpenDota also reads the full replay, which adds: lane results (each lane’s combined net worth at 10:00 against the lane it faced; 10% ahead is a win, 10% behind a loss, anything closer a draw), the time of each player’s first 2,000+ gold item and Black King Bar, compared with the usual time for that hero in that position, time spent dead, enemy wards destroyed, how long their observer wards survived (a ward gone before 340 of its 360 seconds counts as destroyed), runes picked up, towers and Roshans last-hit, and first blood. A bar shows “not enough data” when a player has too little of something to rank, such as a carry who never places wards. Deciding games are the last possible game of a series (game 3 of a best-of-3, game 5 of a best-of-5). Consistency is how much a player’s xWin moves from game to game.</p>
       <p><b>Team lane and mid-game.</b> For teams only: the gold lead at 10:00 (all five players), and the mid-game swing, the gold gained or lost against the opponent between 10:00 and 20:00, adjusted for the opponent’s strength so that 0 is a typical team. Teams that win the mid-game do it consistently: a team’s swing in one half of its games matches the other half more closely (0.70) than its win rate does (0.58). Expected W% combines the two into how often teams with that lane and mid-game win (accuracy <span data-draw="m-team" data-source="scope">—</span> AUC). It stays out of player xWin because the mid-game is won by the whole team, not one player.</p>
+      <p><b>Draft score.</b> How likely a team’s five heroes are to beat the other five before anyone plays. It adds up three parts, all in log-odds: <b>hero strength</b>, each hero’s win rate in pro games on that patch (pulled toward its win rate across all patches as if it had 20 more games there, and that toward 50%); <b>counters</b>, for each of the 25 hero-against-hero pairings, how much better that hero does against that enemy than the two strengths predict; and <b>synergy</b>, the same for the 10 pairs of heroes on each team. Hero strength comes only from pro games, because pros pick and play heroes differently. Counters and synergy come from high-rank public games on the same patch (OpenDota, average rank Divine 5 and up, ranked All Pick; <span data-draw="m-dpub" data-source="scope">—</span> games), because pro games are far too few to measure pairs: split the pro games in half and the halves agree on a pairing at only r = <span data-draw="m-dsplit" data-source="scope">—</span>, about as well as pub and pro agree (r = <span data-draw="m-dtrans" data-source="scope">—</span>). Letting pro games pull each pairing away from its pub value did no better on unseen games, so pairings use pub games alone. A logistic regression on pro games sets how much each part counts, and each game is scored with its own result left out. On games it never saw, the draft score’s AUC is <span data-draw="m-dauc" data-source="scope">—</span> (hero strength alone: <span data-draw="m-dauc0" data-source="scope">—</span>; player xWin: <span data-draw="m-auc2" data-source="scope">—</span>): drafts matter, but much less than how the game is played. A team’s Draft win % is the average over its games. The <b>head-to-head</b> page puts two teams’ numbers side by side, with a one-game win chance from current Elo: 1 ÷ (1 + 10^((Elo B − Elo A) ÷ 400)).</p>
       <p><b>Closing and late games.</b> Leads closed is the share of games a player’s team won after being 5,000+ gold ahead at 20:00 (about 92% across all pro games); comebacks are wins from 5,000+ behind (about 9%). These lean on the whole team, so they are most telling on team pages. Late-game xWin is xWin in games of 45 minutes or more; scaling is that minus xWin in games under 30 minutes. Bars drawn faded and striped rest on a small sample: under 30 games overall, or too few of the games that stat needs (for example fewer than 12 long games or 15 games with a big lead).</p>
       <p><b>Small samples.</b> A player’s xWin % and lane xWin % are pulled toward their position’s average, as if they had also played a set number of perfectly average games: about 20–40, measured each week from how much one player’s games vary compared with how much players truly differ. With 20 games, a raw 66% might show as about 60%; with 100 games it barely moves. Player pages show the raw figure under the big number. WAA uses the raw figures, since a short sample already earns less of it.</p>
-      <p><b>Lane xWin %</b> uses only the 10:00 numbers, so it rates the early game. <b>Wins Above Average (WAA)</b> adds up, over every game, the player's xWin minus the average xWin for their position in the selected dates. A typical player at the position scores 0. Like WAR, it counts: playing more games well adds up. The model separates good and bad support play less sharply than core play, so WAA spreads wider for cores. Compare WAA within a position.</p>
+      <p><b>Lane xWin %</b> uses only the 10:00 numbers, so it rates the early game. <b>Wins Above Average (WAA)</b> adds up, over every game, the player's xWin minus the average xWin of every game at their position in the selected dates and opponents, by anyone who played it (regulars or not). An average player at the position scores 0. Like WAR, it counts: playing more games well adds up. The model separates good and bad support play less sharply than core play, so WAA spreads wider for cores. Compare WAA within a position.</p>
       <p>On games it never saw (<span data-draw="m-from">—</span> onward) the model's AUC is <span data-draw="m-auc" data-source="scope" data-field="xwin_auc" data-row="0">—</span>, where 0.5 is a coin flip and 1.0 is perfect. Lane-only AUC is <span data-draw="m-lane" data-source="scope" data-field="lane_auc" data-row="0">—</span>. Splitting each player's games into alternating halves, xWin % in one half matches the other at r = <span data-draw="m-repx" data-source="scope" data-field="rep_xwin" data-row="0">—</span>, against r = <span data-draw="m-repw" data-source="scope" data-field="rep_win" data-row="0">—</span> for actual win %, so xWin tracks the player more than their team's results do.</p>
       <p>Percentiles rank a player against everyone with the same position in the selected dates, from 1 (worst) to 100 (best). Deaths are reversed, so fewer deaths gives a higher percentile. Each position shows the stats that matter most for it. Fewer than 30 games is marked as a small sample.</p>
       <p><b>Refresh history.</b> The data and model are rebuilt every Monday. Each run is logged here, and its model weights are archived alongside the refresh script.</p>
@@ -1121,6 +1173,35 @@ th[data-tip] { cursor: help; }
       <p><b>Filters.</b> By default everything uses games since the latest TI against <b>Tier 1 teams</b> (teams that play the big events). Switch to Tier 1 + Tier 2 or all teams, or pick a patch or event, at the top of the home page or from the bar.</p>
       <p>Data from OpenDota. Hero art © Valve. A fan project, not affiliated with Valve or OpenDota.</p>
     </section>
+  </div>
+
+  <div class="dps-view" id="h2h-view" hidden>
+    <button class="dps-back" data-back type="button">&larr; Back to home</button>
+    <section class="dps-card dps-h2h">
+      <h2 class="dps-name">Head to head</h2>
+      <div class="dps-h2hpick" data-draw="h2h-pick" data-source="teamagg"></div>
+      <div data-draw="h2h-head" data-source="teamagg pm"></div>
+    </section>
+    <div class="dps-two">
+      <section class="dps-card">
+        <h2 class="dps-h2">Line-ups<small>Each team’s most recent player at each position (3+ games for the team in its last 30 days within these dates). xWin is at that position, in these dates and opponents; the higher one is highlighted.</small></h2>
+        <div class="dps-tablewrap">
+          <table class="dps-table dps-h2hline">
+            <thead><tr><th class="l">Team A</th><th>xWin</th><th>Pos</th><th>xWin</th><th class="l">Team B</th></tr></thead>
+            <tbody data-draw="h2h-lineups" data-source="pm stats"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="dps-card">
+        <h2 class="dps-h2">Past meetings<small>Last 20 in these dates and opponents. Draft A is Team A’s draft win % for that game; xWin is each team’s average. Click a date to open the match on OpenDota.</small></h2>
+        <div class="dps-tablewrap">
+          <table class="dps-table">
+            <thead><tr><th>Date</th><th class="l">Event</th><th class="l">Winner</th><th>Draft A</th><th>xWin A</th><th>xWin B</th></tr></thead>
+            <tbody data-draw="h2h-games" data-source="pm"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   </div>
 
   <div class="dps-view" id="event-view" hidden>
@@ -1179,7 +1260,7 @@ th[data-tip] { cursor: help; }
         <h2 class="dps-h2">Recent games<small>Last 15 in these dates and opponents. Opp. Elo is the opponent’s rating going into the game; xWin is the team’s average for that game. Click a date to open the match on OpenDota.</small></h2>
         <div class="dps-tablewrap">
           <table class="dps-table" data-source="pm" data-row-key="match_id">
-            <thead><tr><th data-field="date">Date</th><th data-field="league" class="l">League</th><th data-field="opp" class="l">Opponent</th><th data-field="opp_elo">Opp. Elo</th><th data-field="win">W/L</th><th data-field="xwin">xWin</th></tr></thead>
+            <thead><tr><th data-field="date">Date</th><th data-field="league" class="l">League</th><th data-field="opp" class="l">Opponent</th><th data-field="opp_elo">Opp. Elo</th><th data-field="win">W/L</th><th data-field="draft" title="This team’s draft win %: how often its five heroes would beat the other five, before anyone plays.">Draft</th><th data-field="xwin">xWin</th></tr></thead>
             <tbody data-draw="team-recent" data-source="pm"></tbody>
           </table>
         </div>
@@ -1197,7 +1278,7 @@ window.DPS.OPP = { 1: 'Tier 1 teams', 2: 'Tier 1 + Tier 2', 3: 'All pro teams' }
 window.DPS.STAT = {
   xwin:      { label: 'xWin %',              f: (v) => d3.format('.1f')(v) + '%', d: 'Expected win rate from this player’s own stats, adjusted for their hero and the opponent’s strength. Like xwOBA: what their play was worth, whatever their team did. Small samples are pulled toward the position average.' },
   xlane:     { label: 'Lane xWin % (10:00)', f: (v) => d3.format('.1f')(v) + '%', d: 'The same model using only the 10:00 lane numbers (gold, XP and last-hit lead over the opposing player in the same position, plus denies), measured against what that hero usually does in lane.' },
-  waa:       { label: 'Wins Above Avg.',     f: d3.format('+.1f'), d: 'Wins Above Average: over every game, xWin minus the average xWin for the position, added up. 0 is a typical player at the position. More good games add up, like WAR.' },
+  waa:       { label: 'Wins Above Avg.',     f: d3.format('+.1f'), d: 'Wins Above Average: over every game, xWin minus the average xWin of everyone who played the position in these games, added up. 0 is an average player at the position. More good games add up, like WAR.' },
   winrate:   { label: 'Win rate',        f: (v) => d3.format('.1f')(v) + '%', d: 'Share of games won.' },
   kda:       { label: 'KDA',             f: d3.format('.2f'), d: '(Average kills + average assists) ÷ average deaths, with deaths counted as at least 1.' },
   kills:     { label: 'Kills',           f: d3.format('.1f'), d: 'Average kills per game.' },
@@ -1312,7 +1393,7 @@ window.DPS.teamRow = (t) => {
   return window.DPS._teams.get(String(t)) || null;
 };
 window.DPS.teamName = (t) => { const r = window.DPS.teamRow(t); return r ? r.name : (t ? 'Team ' + t : 'No team'); };
-window.DPS.VIEWS = { home: 'home', player: 'player-view', hero: 'hero-view', team: 'team-view', event: 'event-view', about: 'about-view' };
+window.DPS.VIEWS = { home: 'home', player: 'player-view', hero: 'hero-view', team: 'team-view', event: 'event-view', about: 'about-view', h2h: 'h2h-view' };
 window.DPS.PLAYER_DRAWS = ['card', 'bars', 'bars-sub', 'line', 'heroes', 'heroart', 'recent', 'trend', 'trend-sub', 'cmp', 'board', 'search-msg', 'top5'];
 window.DPS.redraw = () => window.DPS.PLAYER_DRAWS.forEach((n) => dash.draw(n));
 window.DPS.show = (view, link) => {
@@ -1348,6 +1429,14 @@ window.DPS.openTeam = (t) => {
   D.show('team', 't-' + t);
   ['team-head', 'team-roster', 'team-recent'].forEach((n) => dash.draw(n));
 };
+window.DPS.H2H_DRAWS = ['h2h-pick', 'h2h-head', 'h2h-lineups', 'h2h-games'];
+window.DPS.openH2H = (a, b) => {
+  const D = window.DPS;
+  if (a == null || b == null) { const d = D.h2hDefault ? D.h2hDefault() : null; if (d) { a = a == null ? d[0] : a; b = b == null ? (String(d[0]) === String(a) ? d[1] : d[0]) : b; } }
+  D.h2h = a != null && b != null ? [String(a), String(b)] : null;
+  D.show('h2h', D.h2h ? 'vs-' + D.h2h[0] + '-' + D.h2h[1] : 'h2h');
+  D.H2H_DRAWS.forEach((n) => dash.draw(n));
+};
 window.DPS.openEvent = (l) => {
   const D = window.DPS;
   D.event = String(l);
@@ -1365,6 +1454,8 @@ window.DPS.route = (hash) => {
   if ((m = /^#h-(\d+)$/.exec(hash))) { D.openHero(m[1]); return true; }
   if ((m = /^#t-(\d+)$/.exec(hash))) { D.openTeam(m[1]); return true; }
   if ((m = /^#e-(\d+)$/.exec(hash))) { D.openEvent(m[1]); return true; }
+  if ((m = /^#vs-(\d+)-(\d+)$/.exec(hash))) { D.openH2H(m[1], m[2]); return true; }
+  if (hash === '#h2h') { D.openH2H(); return true; }
   if (hash === '#player-view') { D.show('player'); return true; }
   if (hash === '#home') { D.show('home'); return true; }
   if (hash === '#about') { D.show('about', 'about'); return true; }
@@ -1378,15 +1469,17 @@ window.DPS.setRange = (from, to) => dash.setParams({ from: from || '', to: to ||
 dash.calc('stats', {
   inputs: ['pm', 'players', 'scope'],
   title: 'Player stats for the selected dates and opponents',
-  description: 'One row per pro per position they reached the minimum games at (lowered to 3 when fewer than 25 players reach the chosen minimum: relaxed), inside the From/To dates and against the chosen opponent tiers. Main = their most-played qualifying position. WAA is measured against the average xWin of all rows at the same position (waa_base); xwin_se is the standard error of xWin %. xwin and xlane are pulled toward the position average by k games of it (shrink_xwin / shrink_xlane in scope): (games x raw + k x average) / (games + k); the raw values are kept as xwin_raw and xlane_raw. WAA uses the raw values.',
+  description: 'One row per pro per position they reached the minimum games at (lowered to 3 when fewer than 25 players reach the chosen minimum: relaxed), inside the From/To dates and against the chosen opponent tiers. Main = their most-played qualifying position. WAA is measured against the average xWin of every game at the same position in these dates and opponents, by any player, regulars or not (waa_base); xwin_se is the standard error of xWin %. xwin and xlane are pulled toward the position average by k games of it (shrink_xwin / shrink_xlane in scope): (games x raw + k x average) / (games + k); the raw values are kept as xwin_raw and xlane_raw. WAA uses the raw values.',
   fn: (pm, players, scope) => {
     const prm = dash.params();
     const from = prm.from || '0000-00-00', to = prm.to || '9999-12-31', min = Number(prm.min) || 15, opp = Number(prm.opp) || 1;
     const POS = { 1: 'Carry', 2: 'Mid', 3: 'Offlane', 4: 'Soft support', 5: 'Hard support' };
     const info = new Map(players.map((p) => [String(p.id), p]));
     const by = new Map();
+    const allx = {};  // WAA baseline: every game at the position in these dates and opponents, any player
     for (const r of pm) {
       if (r.date < from || r.date > to || (Number(r.opp_tier) || 3) > opp) continue;
+      if (r.xwin !== null && r.xwin !== '' && r.xwin !== undefined) { const t = (allx[r.pos] = allx[r.pos] || { s: 0, n: 0 }); t.s += +r.xwin; t.n++; }
       let a = by.get(r.id);
       if (!a) by.set(r.id, (a = { n: 0, pos: {}, last: null }));
       a.n++;
@@ -1490,8 +1583,9 @@ dash.calc('stats', {
     out.forEach((o) => {
       const b = base[o.pos].n ? base[o.pos].s / base[o.pos].n : 0.5;
       const lb = lbase[o.pos].n ? lbase[o.pos].s / lbase[o.pos].n : 0.5;
-      o.waa = rd(o._xs - o._xn * b, 1);
-      o.waa_base = rd(b * 100, 1);
+      const ax = allx[o.pos], wb = ax && ax.n ? ax.s / ax.n : b;
+      o.waa = rd(o._xs - o._xn * wb, 1);
+      o.waa_base = rd(wb * 100, 1);
       const k1 = kx[o.pos - 1] || 30, k2 = kl[o.pos - 1] || 30;
       if (o._xn) o.xwin = rd((o._xs + k1 * b) / (o._xn + k1) * 100, 1);
       if (o._ln) o.xlane = rd((o._ls + k2 * lb) / (o._ln + k2) * 100, 1);
@@ -1663,7 +1757,7 @@ dash.calc('heroagg', {
 dash.calc('teamagg', {
   inputs: ['pm', 'teams'],
   title: 'Teams in the selected dates',
-  description: 'Per team, from its pro rows inside the dates and opponent tiers: record (one result per match), team xWin (average xWin of its listed pros), games 5,000+ gold ahead or behind at 20:00 and how many of those it won, lane lead at 10:00 and mid-game swing (gold gained 10:00 to 20:00, opponent-adjusted, 0 = typical) with percentiles among teams with 10+ games, expected win % from lane and mid-game, and current Elo and Tier 1 status from the teams file.',
+  description: 'Per team, from its pro rows inside the dates and opponent tiers: record (one result per match), team xWin (average xWin of its listed pros), games 5,000+ gold ahead or behind at 20:00 and how many of those it won, lane lead at 10:00 and mid-game swing (gold gained 10:00 to 20:00, opponent-adjusted, 0 = typical) with percentiles among teams with 10+ games, expected win % from lane and mid-game, draft win % (average pre-game draft score of its games, 5+ needed; draft_pct among teams with 10+), and current Elo and Tier 1 status from the teams file.',
   fn: (pm, teams) => {
     const prm = dash.params();
     const from = prm.from || '0000-00-00', to = prm.to || '9999-12-31', opp = Number(prm.opp) || 1;
@@ -1672,9 +1766,10 @@ dash.calc('teamagg', {
     for (const r of pm) {
       if (!r.team || r.date < from || r.date > to || (Number(r.opp_tier) || 3) > opp) continue;
       let a = agg.get(r.team);
-      if (!a) agg.set(r.team, (a = { m: new Map(), lead: new Map(), mid: [], xs: 0, xn: 0, last: '' }));
+      if (!a) agg.set(r.team, (a = { m: new Map(), lead: new Map(), mid: [], dr: [], xs: 0, xn: 0, last: '' }));
       if (!a.m.has(r.match_id)) {
         a.m.set(r.match_id, +r.win);
+        if (r.draft !== '' && r.draft != null) a.dr.push(+r.draft);
         if (r.lead20 !== '' && r.lead20 != null) a.lead.set(r.match_id, +r.lead20);
         if (r.swing !== '' && r.swing != null) a.mid.push([+r.lead10, +r.swing, +r.mid_xw]);
       }
@@ -1697,7 +1792,9 @@ dash.calc('teamagg', {
         mid_n: a.mid.length,
         lane10: a.mid.length >= 5 ? Math.round(a.mid.reduce((s, v) => s + v[0], 0) / a.mid.length) : null,
         swing: a.mid.length >= 5 ? Math.round(a.mid.reduce((s, v) => s + v[1], 0) / a.mid.length) : null,
-        exp_win: a.mid.length >= 5 ? Math.round(a.mid.reduce((s, v) => s + v[2], 0) / a.mid.length * 1000) / 10 : null
+        exp_win: a.mid.length >= 5 ? Math.round(a.mid.reduce((s, v) => s + v[2], 0) / a.mid.length * 1000) / 10 : null,
+        draft_n: a.dr.length,
+        draft: a.dr.length >= 5 ? Math.round(a.dr.reduce((s, v) => s + v, 0) / a.dr.length * 1000) / 10 : null
       };
     }).sort((a, b) => b.elo - a.elo);
     // Percentiles among teams with 10+ games here, for the lane and mid-game numbers.
@@ -1705,6 +1802,8 @@ dash.calc('teamagg', {
     const pct = (k, v) => { const vals = pool.map((t) => t[k]); const below = vals.filter((x) => x < v).length, eq = vals.filter((x) => x === v).length;
       return vals.length > 1 ? Math.max(1, Math.min(100, Math.round((below + (eq - 1) / 2) / (vals.length - 1) * 100))) : null; };
     out.forEach((t) => { t.lane_pct = t.mid_n >= 10 ? pct('lane10', t.lane10) : null; t.swing_pct = t.mid_n >= 10 ? pct('swing', t.swing) : null; t.teams_ranked = pool.length; });
+    const dpool = out.filter((t) => t.draft_n >= 10);
+    out.forEach((t) => { const v = dpool.map((x) => x.draft); t.draft_pct = t.draft_n >= 10 && v.length > 1 ? Math.max(1, Math.min(100, Math.round(v.filter((x) => x < t.draft).length / (v.length - 1) * 100))) : null; });
     return out;
   }
 });
@@ -1826,6 +1925,7 @@ dash.calc('teamagg', {
   const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
   const goSection = (key) => {
     if (key === 'about') { D.show('about', 'about'); return; }
+    if (key === 'h2h') { D.openH2H(D.h2h ? D.h2h[0] : null, D.h2h ? D.h2h[1] : null); return; }
     if (key === 'notes') {  // the full methodology sits at the bottom of the About page
       if (D.view !== 'about') D.show('about', 'about');
       const n = document.getElementById('notes');
@@ -1919,6 +2019,12 @@ dash.calc('teamagg', {
   dash.draw('n-multi', one('scope', 'heroes_multi', String));
   dash.draw('n-lane', one('scope', 'pos_lane_pct', String));
   dash.draw('m-team', one('scope', 'team_mid_auc', d3.format('.3f')));
+  dash.draw('m-dauc', one('scope', 'draft_auc', d3.format('.3f')));
+  dash.draw('m-dauc0', one('scope', 'draft_auc_strength', d3.format('.3f')));
+  dash.draw('m-auc2', one('scope', 'xwin_auc', d3.format('.3f')));
+  dash.draw('m-dpub', one('scope', 'pub_games', (v) => (v ? d3.format(',')(v) : '—')));
+  dash.draw('m-dtrans', one('scope', 'draft_transfer', (v) => (v == null || v === '' ? '—' : d3.format('.2f')(v))));
+  dash.draw('m-dsplit', one('scope', 'draft_split', (v) => (v == null || v === '' ? '—' : d3.format('.2f')(v))));
   dash.draw('n-dropped', one('scope', 'matches_dropped', d3.format(',')));
   dash.draw('n-leagues', one('scope', 'leagues_dropped', String));
   dash.draw('n-t1', one('scope', 'tier1_teams', String));
@@ -2528,7 +2634,8 @@ dash.calc('teamagg', {
       tr.append(nm, mark(mk('td', null, t.elo), 'teamagg', 'elo', t.team, 'team'), mk('td', null, t.wins + '–' + t.losses), mk('td', null, pct(t.winrate)),
         mark(mk('td', null, pct(t.xwin)), 'teamagg', 'xwin', t.team, 'team'), gap,
         mark(mk('td', null, kgold(t.lane10)), 'teamagg', 'lane10', t.team, 'team'), mark(mk('td', t.swing >= 1000 ? 'dps-pos' : t.swing <= -1000 ? 'dps-neg' : null, kgold(t.swing)), 'teamagg', 'swing', t.team, 'team'),
-        mark(mk('td', null, t.exp_win == null ? '—' : pct(t.exp_win)), 'teamagg', 'exp_win', t.team, 'team'), mk('td', 'l', D.fmtDate(t.last)));
+        mark(mk('td', null, t.exp_win == null ? '—' : pct(t.exp_win)), 'teamagg', 'exp_win', t.team, 'team'),
+        mark(mk('td', t.draft >= 52 ? 'dps-pos' : t.draft != null && t.draft <= 48 ? 'dps-neg' : null, t.draft == null ? '—' : pct(t.draft)), 'teamagg', 'draft', t.team, 'team'), mk('td', 'l', D.fmtDate(t.last)));
       return tr;
     }));
   });
@@ -2616,9 +2723,15 @@ dash.calc('teamagg', {
         kpi('Games', 'matches', t.matches), kpi('Elo', 'elo', t.elo), kpi('Win − xWin', 'gap', d3.format('+.1f')(t.gap)),
         kpi('Leads closed', 'lead_w', t.lead_n ? t.lead_w + '/' + t.lead_n : '—'), kpi('Comebacks', 'comeback_w', t.comeback_n ? t.comeback_w + '/' + t.comeback_n : '—'),
         kpi('Lane lead 10:00', 'lane10', kgold(t.lane10)), kpi('Mid-game swing', 'swing', kgold(t.swing)),
-        kpi('Expected W% (lane + mid)', 'exp_win', t.exp_win == null ? '—' : pct(t.exp_win)));
+        kpi('Expected W% (lane + mid)', 'exp_win', t.exp_win == null ? '—' : pct(t.exp_win)),
+        kpi('Draft win %', 'draft', t.draft == null ? '—' : pct(t.draft)));
     }
-    const note = mk('div', 'dps-best', t ? 'Team xWin is the average xWin of its listed pros in these games: how often the team’s individual play says it should win. Expected W% (lane + mid) is how often teams with this lane lead and mid-game swing win.' : 'No games for these dates and opponents.');
+    const note = mk('div', 'dps-best', t ? 'Team xWin is the average xWin of its listed pros in these games: how often the team’s individual play says it should win. Expected W% (lane + mid) is how often teams with this lane lead and mid-game swing win. Draft win % is how often its drafts (hero strength, counters and synergy) would win before anyone plays.' + (t.draft_pct != null ? ' Its drafts rank in the ' + D.ord(t.draft_pct) + ' percentile.' : '') : 'No games for these dates and opponents.');
+    // Head to head against its most recent opponent.
+    const R0 = dash.data('pm');
+    let lastOpp = null, lastD = '';
+    if (R0.status === 'ok') for (const r of R0.data) if (String(r.team) === String(D.team) && r.opp && r.date >= lastD) { lastD = r.date; lastOpp = r.opp; }
+    if (lastOpp) note.append(' ', link('Head to head vs ' + D.teamName(lastOpp) + ' →', () => D.openH2H(D.team, lastOpp)));
     const style = mk('div', 'dps-pill dps-style');
     if (t && t.lane_pct != null && t.swing_pct != null) {
       const word = (p) => (p >= 67 ? 'strong' : p <= 33 ? 'weak' : 'average');
@@ -2683,7 +2796,147 @@ dash.calc('teamagg', {
       const won = String(r.win) === '1';
       const opp = mk('td', 'l'); opp.append(teamLink(r.opp)); if (Number(r.opp_tier) === 1) opp.append(mk('span', 'dps-tag', 'T1'));
       tr.append(mlink(r.match_id, r.date), evcell(r.league, ln), opp, mk('td', null, r.opp_elo),
-        mk('td', won ? 'dps-win' : 'dps-loss', won ? 'W' : 'L'), mk('td', null, xn ? pct(xs / xn * 100) : '—'));
+        mk('td', won ? 'dps-win' : 'dps-loss', won ? 'W' : 'L'), mk('td', null, has(r.draft) ? pct(r.draft * 100) : '—'), mk('td', null, xn ? pct(xs / xn * 100) : '—'));
+      return tr;
+    }));
+  });
+
+  // ---------- Head to head ----------
+  const h2hTeams = () => { const T = dash.data('teamagg'); return T.status === 'ok' ? T.data.filter((t) => t.matches >= 5) : []; };
+  D.h2hDefault = () => {
+    const L = h2hTeams(), t1 = L.filter((t) => t.tier1);
+    const pool = t1.length >= 2 ? t1 : L;
+    return pool.length >= 2 ? [String(pool[0].team), String(pool[1].team)] : null;
+  };
+  const back30 = (d) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() - 30); return x.toISOString().slice(0, 10); };
+
+  dash.draw('h2h-pick', (el) => {
+    const L = h2hTeams();
+    if (!L.length) { el.replaceChildren(); return; }
+    if (!D.h2h) { D.h2h = D.h2hDefault(); if (D.h2h && D.view === 'h2h') { D.link = 'vs-' + D.h2h[0] + '-' + D.h2h[1]; dash.setLink(D.link); D.H2H_DRAWS.slice(1).forEach((n) => dash.draw(n)); } }
+    if (!D.h2h) { el.replaceChildren(); return; }
+    const list = L.slice().sort((a, b) => a.name.localeCompare(b.name));
+    const make = (i, lab) => {
+      const wrap = mk('label', 'dps-h2hsel'); wrap.append(mk('span', 'dps-lab', lab));
+      const s = mk('select');
+      const opts = list.slice();
+      if (!opts.some((t) => String(t.team) === D.h2h[i])) opts.unshift({ team: D.h2h[i], name: D.teamName(D.h2h[i]) });
+      opts.forEach((t) => { const o = mk('option', null, t.name); o.value = String(t.team); s.append(o); });
+      s.value = D.h2h[i];
+      s.addEventListener('change', () => { const n = D.h2h.slice(); n[i] = s.value; D.openH2H(n[0], n[1]); });
+      wrap.append(s); return wrap;
+    };
+    el.replaceChildren(make(0, 'Team A'), mk('span', 'dps-h2hvs', 'vs'), make(1, 'Team B'), link('⇄ Swap', () => D.openH2H(D.h2h[1], D.h2h[0]), 'dps-h2hswap'));
+  });
+
+  dash.draw('h2h-head', (el) => {
+    const T = dash.data('teamagg'), R = dash.data('pm');
+    if (!D.h2h) { el.replaceChildren(); return; }
+    if (T.status !== 'ok') return wait(el, T.status, 'Team data');
+    el.classList.remove('dash-skeleton');
+    const [ia, ib] = D.h2h;
+    const find = (id) => T.data.find((t) => String(t.team) === String(id)) || null;
+    const A = find(ia), B = find(ib), ra = D.teamRow(ia) || {}, rb = D.teamRow(ib) || {};
+    const ea = Number(ra.elo || (A && A.elo) || 1500), eb = Number(rb.elo || (B && B.elo) || 1500);
+    const pa = 1 / (1 + Math.pow(10, (eb - ea) / 400));
+    const nA = (A && A.name) || D.teamName(ia), nB = (B && B.name) || D.teamName(ib);
+    // Meetings in these dates and opponents.
+    let wa = 0, wb = 0;
+    if (R.status === 'ok') { const seen = new Set(); const prm = dash.params();
+      R.data.forEach((r) => { if (String(r.team) === ia && String(r.opp) === ib && D.keep(r, prm) && !seen.has(r.match_id)) { seen.add(r.match_id); if (+r.win === 1) wa++; else wb++; } }); }
+    const top = mk('div', 'dps-h2htop');
+    const side = (nm, id, p, cls) => { const d = mk('div', 'dps-h2hteam ' + cls); d.append(teamLink(id, nm), mk('b', null, d3.format('.0f')(p * 100) + '%')); return d; };
+    const meter = mk('div', 'dps-h2hmeter'); meter.setAttribute('aria-hidden', 'true');
+    const fa = mk('i'); fa.style.width = (pa * 100) + '%'; meter.append(fa);
+    top.append(side(nA, ia, pa, 'a'), meter, side(nB, ib, 1 - pa, 'b'));
+    const cap = mk('div', 'dps-best', 'Win chance for one game from current Elo (' + ea + ' vs ' + eb + '). Meetings in these dates and opponents: ' + nA + ' ' + wa + '–' + wb + ' ' + nB + '.');
+    const rate = (t, w, n) => (t && t[n] >= 3 ? t[w] / t[n] * 100 : null);
+    const rows = [
+      ['Team xWin %', (t) => t && t.xwin, (v) => pct(v) + '%', 'How often each team’s individual play says it should win.'],
+      ['Win %', (t) => t && t.winrate, (v) => pct(v) + '%', 'Actual results in these games.'],
+      ['Draft win %', (t) => t && t.draft, (v) => pct(v) + '%', 'How often its drafts would win before anyone plays.'],
+      ['Lane lead 10:00', (t) => t && t.lane10, kgold, 'Average gold lead when lanes end.'],
+      ['Mid-game swing', (t) => t && t.swing, kgold, 'Gold gained from 10:00 to 20:00 (0 = typical).'],
+      ['Expected W% (lane + mid)', (t) => t && t.exp_win, (v) => pct(v) + '%', 'How often teams with that lane and mid-game win.'],
+      ['Leads closed', (t) => rate(t, 'lead_w', 'lead_n'), (v) => pct(v) + '%', 'Wins when 5k+ ahead at 20:00.'],
+      ['Comebacks', (t) => rate(t, 'comeback_w', 'comeback_n'), (v) => pct(v) + '%', 'Wins when 5k+ behind at 20:00.'],
+      ['Games', (t) => t && t.matches, String, 'Games in these dates and opponents.']
+    ];
+    const tab = mk('table', 'dps-table dps-h2htab');
+    const th = mk('thead'); const hr = mk('tr'); hr.append(mk('th', 'a', nA), mk('th', 'm', ''), mk('th', 'b', nB)); th.append(hr);
+    const tb = mk('tbody');
+    rows.forEach(([lab, get, f, d]) => {
+      const va = get(A), vb = get(B);
+      const tr = mk('tr');
+      const better = lab === 'Games' || va == null || vb == null || va === vb ? 0 : va > vb ? 1 : -1;
+      const ca = mk('td', 'a' + (better === 1 ? ' win' : ''), va == null ? '—' : f(va)), cb = mk('td', 'b' + (better === -1 ? ' win' : ''), vb == null ? '—' : f(vb));
+      const mid = mk('td', 'm'); mid.append(mk('span', null, lab)); mid.title = d;
+      tr.append(ca, mid, cb); tb.append(tr);
+    });
+    tab.append(th, tb);
+    const wrapT = mk('div', 'dps-tablewrap'); wrapT.append(tab);
+    el.replaceChildren(top, cap, wrapT);
+  });
+
+  dash.draw('h2h-lineups', (el) => {
+    const R = dash.data('pm'), P = dash.data('players');
+    if (!D.h2h || R.status !== 'ok') { el.replaceChildren(); return; }
+    const prm = dash.params();
+    const pn = new Map((P.status === 'ok' ? P.data : []).map((p) => [String(p.id), p]));
+    const roster = (team) => {
+      const agg = new Map(); let last = '';
+      R.data.forEach((r) => {
+        if (String(r.team) !== String(team) || !D.keep(r, prm)) return;
+        let a = agg.get(r.id); if (!a) agg.set(r.id, (a = { g: 0, pos: {}, last: '', xs: 0, xn: 0 }));
+        a.g++; a.pos[r.pos] = (a.pos[r.pos] || 0) + 1; if (r.date > a.last) a.last = r.date; if (r.date > last) last = r.date;
+        if (has(r.xwin)) { a.xs += +r.xwin; a.xn++; }
+      });
+      const cut = last ? back30(last) : '';
+      const byPos = {};
+      [...agg.entries()].filter(([, a]) => a.g >= 3 && a.last >= cut).forEach(([id, a]) => {
+        const p = Number(Object.keys(a.pos).sort((x, y) => a.pos[y] - a.pos[x])[0]);
+        const cur = byPos[p];
+        if (!cur || a.last > cur.a.last || (a.last === cur.a.last && a.g > cur.a.g)) byPos[p] = { id, a, p };
+      });
+      return byPos;
+    };
+    const xw = (e) => { if (!e) return null; const s = D.rowsFor(e.id).find((r) => r.pos === e.p); return s ? s.xwin : (e.a.xn ? e.a.xs / e.a.xn * 100 : null); };
+    const RA = roster(D.h2h[0]), RB = roster(D.h2h[1]);
+    if (!Object.keys(RA).length && !Object.keys(RB).length) { empty(el, 5, 'No players with 3+ games for either team in these dates and opponents.'); return; }
+    el.replaceChildren(...[1, 2, 3, 4, 5].map((p) => {
+      const a = RA[p], b = RB[p], xa = xw(a), xb = xw(b);
+      const tr = mk('tr');
+      const who = (e) => { const td = mk('td', 'l'); td.append(e ? link((pn.get(String(e.id)) || {}).name || e.id, () => D.select(e.id, e.p)) : '—'); return td; };
+      const cell = (v, o) => mk('td', v != null && o != null && v > o + 0.5 ? 'dps-pos' : null, v == null ? '—' : pct(v));
+      tr.append(who(a), cell(xa, xb), mk('td', 'dps-h2hpos', 'Pos ' + p), cell(xb, xa), who(b));
+      return tr;
+    }));
+  });
+
+  dash.draw('h2h-games', (el) => {
+    const R = dash.data('pm'), LG = dash.data('leagues');
+    if (!D.h2h || R.status !== 'ok') { el.replaceChildren(); return; }
+    const prm = dash.params(), [ia, ib] = D.h2h;
+    const ln = new Map((LG.status === 'ok' ? LG.data : []).map((l) => [String(l.league), l.name]));
+    const games = new Map();
+    R.data.forEach((r) => {
+      const t = String(r.team), o = String(r.opp);
+      if (!((t === ia && o === ib) || (t === ib && o === ia)) || !D.keep(r, prm)) return;
+      let g = games.get(r.match_id);
+      if (!g) games.set(r.match_id, (g = { r: null, ax: 0, an: 0, bx: 0, bn: 0, draft: null }));
+      if (t === ia) { g.r = g.r || r; if (has(r.draft)) g.draft = +r.draft; if (has(r.xwin)) { g.ax += +r.xwin; g.an++; } }
+      else { if (!g.r) g.rb = r; if (has(r.draft) && g.draft == null) g.draft = 1 - r.draft; if (has(r.xwin)) { g.bx += +r.xwin; g.bn++; } }
+    });
+    const list = [...games.entries()].map(([id, g]) => {
+      const r = g.r || g.rb, aWon = g.r ? +g.r.win === 1 : +g.rb.win !== 1;
+      return { id, r, aWon, ...g };
+    }).sort((x, y) => (x.r.date < y.r.date ? 1 : x.r.date > y.r.date ? -1 : 0)).slice(0, 20);
+    if (!list.length) { empty(el, 6, 'These teams have not met in these dates and opponents. Widen the dates or opponents filter.'); return; }
+    el.replaceChildren(...list.map((g) => {
+      const tr = mk('tr'); tr.setAttribute('data-key', g.id);
+      const win = mk('td', 'l'); win.append(teamLink(g.aWon ? ia : ib));
+      tr.append(mlink(g.id, g.r.date), evcell(g.r.league, ln), win, mk('td', g.draft != null && g.draft >= 0.55 ? 'dps-pos' : g.draft != null && g.draft <= 0.45 ? 'dps-neg' : null, g.draft == null ? '—' : pct(g.draft * 100)),
+        mk('td', null, g.an ? pct(g.ax / g.an * 100) : '—'), mk('td', null, g.bn ? pct(g.bx / g.bn * 100) : '—'));
       return tr;
     }));
   });
