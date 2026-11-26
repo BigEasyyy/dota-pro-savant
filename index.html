@@ -107,10 +107,10 @@ img { max-width: 100%; }
       });
     }
   };
-  const SIZES = {"pm-recent.csv": 2786310, "pm-older.csv": 12119877};
+  const SIZES = {"pm-recent.csv": 2884570, "pm-older.csv": 12549231};
   // Fetch a text file, reporting progress (0-1) against its known size.
   const getText = async (f, onProgress) => {
-    const r = await fetch('data/' + f + '?v=202611260059');
+    const r = await fetch('data/' + f + '?v=202611260106');
     if (!r.ok) throw new Error(f + ' ' + r.status);
     if (!r.body || !onProgress) return r.text();
     const reader = r.body.getReader(), parts = [];
@@ -692,6 +692,12 @@ th[data-tip] { cursor: help; }
 .dps-h2htab td.a.win { box-shadow: inset -3px 0 0 var(--dps-red); } .dps-h2htab td.b.win { box-shadow: inset 3px 0 0 var(--dps-blue); }
 .dps-h2hpos { color: var(--color-fg-muted); font: 600 11px var(--dps-mono); text-transform: uppercase; }
 
+/* ---- WAR (test metric) ---- */
+.dps-testtag { background: transparent; color: var(--color-fg-muted); border: 1px dashed var(--color-fg-muted); font-size: 9.5px; padding: 0 4px; vertical-align: 1px; }
+.dps-kpi.dps-test { border-style: dashed; }
+.dps-kpi.dps-test > span::after { content: ""; }
+td.dps-testcell { color: var(--color-fg-muted); }
+
 /* ---- 8-bit hero sprites: transparent, outlined, no frame; they hop when you point at them ---- */
 .dps-pix, .dps-table .dps-pix, .dps-t5list li:first-child .dps-pix, .dps-banpix { box-shadow: none; background-color: transparent;
   filter: drop-shadow(2px 2px 0 color-mix(in srgb, var(--color-fg) 22%, transparent)); }
@@ -873,6 +879,7 @@ th[data-tip] { cursor: help; }
           <th data-field="games"><button class="dps-sort" data-k="games">Games</button></th>
           <th data-field="xwin" data-tip="xwin"><button class="dps-sort" data-k="xwin">xWin %</button></th>
           <th data-field="waa" data-tip="waa"><button class="dps-sort" data-k="waa">WAA</button></th>
+          <th data-field="war" data-tip="war" class="dps-testcell"><button class="dps-sort" data-k="war">WAR <span class="dps-tag dps-testtag">test</span></button></th>
           <th data-field="winrate" data-tip="winrate"><button class="dps-sort" data-k="winrate">Win %</button></th>
           <th data-field="kda" data-tip="kda"><button class="dps-sort" data-k="kda">KDA</button></th>
           <th data-field="gpm" data-tip="gpm"><button class="dps-sort" data-k="gpm">GPM</button></th>
@@ -1054,6 +1061,8 @@ th[data-tip] { cursor: help; }
           <li><b>0</b>: average.</li>
           <li>It counts up, like WAR in baseball: playing a lot <i>and</i> playing well both raise it.</li>
         </ul>
+        <p>WAA is fair <b>within</b> a position. It can’t fairly compare a Pos 5 with a Pos 1, because each position has its own model and its own scale.</p>
+        <p><span class="dps-tag dps-testtag">Test</span> <b>WAR</b> is our experiment to fix that: one scale for every position, like baseball WAR comparing a hitter with a pitcher. Each game’s win chance is split between the five players so it adds up and is never counted twice, and players are measured against a part-time stand-in rather than the average. It is still being tested and currently leans toward carries, so treat it as a work in progress.</p>
       </div>
       <figure class="dps-aboutfig dps-waa" aria-label="WAA adds up game by game">
         <div class="dps-waagames">
@@ -1136,6 +1145,7 @@ th[data-tip] { cursor: help; }
       <p><b>Closing and late games.</b> Leads closed is the share of games a player’s team won after being 5,000+ gold ahead at 20:00 (about 92% across all pro games); comebacks are wins from 5,000+ behind (about 9%). These lean on the whole team, so they are most telling on team pages. Late-game xWin is xWin in games of 45 minutes or more; scaling is that minus xWin in games under 30 minutes. Bars drawn faded and striped rest on a small sample: under 30 games overall, or too few of the games that stat needs (for example fewer than 12 long games or 15 games with a big lead).</p>
       <p><b>Small samples.</b> A player’s xWin % and lane xWin % are pulled toward their position’s average, as if they had also played a set number of perfectly average games: about 20–40, measured each week from how much one player’s games vary compared with how much players truly differ. With 20 games, a raw 66% might show as about 60%; with 100 games it barely moves. Player pages show the raw figure under the big number. WAA uses the raw figures, since a short sample already earns less of it.</p>
       <p><b>Lane xWin %</b> uses only the 10:00 numbers, so it rates the early game. <b>Wins Above Average (WAA)</b> adds up, over every game, the player's xWin minus the average xWin of every game at their position in the selected dates and opponents, by anyone who played it (regulars or not). An average player at the position scores 0. Like WAR, it counts: playing more games well adds up. The model separates good and bad support play less sharply than core play, so WAA spreads wider for cores. Compare WAA within a position.</p>
+      <p><b>WAR (test metric).</b> An experiment to put every position on one scale. Each player’s xWin in a game is turned into log-odds and measured against their position’s average. One team model (a logistic regression on each position’s difference from the opposing player at that position) then sets how much play at each position is worth once the other four are known: weights <span data-draw="m-warw" data-source="scope">—</span> for Pos 1 to 5. A replacement player plays like the part-timers at that position (player-positions with fewer than 15 games in the data; their average xWin is <span data-draw="m-warr" data-source="scope">—</span>, against <span data-draw="m-wara" data-source="scope">—</span> for everyone). In every game, the team’s win chance with its five players minus the chance with five replacements is split between the five with Shapley values: each player gets their average gain over every order of swapping the replacements out, so the five shares add up exactly to the team’s total. WAR is the sum over a player’s games. Within a position it ranks players the same way xWin does (split-half repeatability 0.62–0.81). Across positions it still leans toward carries: carry stats track which team is winning more closely than support stats do, and the team model credits that to the carry. Games where a Tier 1 team fielded a stand-in suggest supports matter more than WAR gives them (a part-time Pos 5 cost about 8 points of win rate over 122 games, a part-time Pos 1 about 11 over 29), so WAR is labelled a test until that is fixed.</p>
       <p>On games it never saw (<span data-draw="m-from">—</span> onward) the model's AUC is <span data-draw="m-auc" data-source="scope" data-field="xwin_auc" data-row="0">—</span>, where 0.5 is a coin flip and 1.0 is perfect. Lane-only AUC is <span data-draw="m-lane" data-source="scope" data-field="lane_auc" data-row="0">—</span>. Splitting each player's games into alternating halves, xWin % in one half matches the other at r = <span data-draw="m-repx" data-source="scope" data-field="rep_xwin" data-row="0">—</span>, against r = <span data-draw="m-repw" data-source="scope" data-field="rep_win" data-row="0">—</span> for actual win %, so xWin tracks the player more than their team's results do.</p>
       <p>Percentiles rank a player against everyone with the same position in the selected dates, from 1 (worst) to 100 (best). Deaths are reversed, so fewer deaths gives a higher percentile. Each position shows the stats that matter most for it. Fewer than 30 games is marked as a small sample.</p>
       <p><b>Refresh history.</b> The data and model are rebuilt every Monday. Each run is logged here, and its model weights are archived alongside the refresh script.</p>
@@ -1258,6 +1268,7 @@ window.DPS.STAT = {
   xwin:      { label: 'xWin %',              f: (v) => d3.format('.1f')(v) + '%', d: 'Expected win rate from this player’s own stats, adjusted for their hero and the opponent’s strength. Like xwOBA: what their play was worth, whatever their team did. Small samples are pulled toward the position average.' },
   xlane:     { label: 'Lane xWin % (10:00)', f: (v) => d3.format('.1f')(v) + '%', d: 'The same model using only the 10:00 lane numbers (gold, XP and last-hit lead over the opposing player in the same position, plus denies), measured against what that hero usually does in lane.' },
   waa:       { label: 'Wins Above Avg.',     f: d3.format('+.1f'), d: 'Wins Above Average: over every game, xWin minus the average xWin of everyone who played the position in these games, added up. 0 is an average player at the position. More good games add up, like WAR.' },
+  war:       { label: 'WAR (test)',      f: d3.format('+.1f'), d: 'Test metric. Wins Above Replacement: one scale for every position. A team model splits each game’s expected win chance between the five players (Shapley values, so credit adds up and is never counted twice), measured against a part-timer at the same position. Still being tested: it currently leans toward carries.' },
   winrate:   { label: 'Win rate',        f: (v) => d3.format('.1f')(v) + '%', d: 'Share of games won.' },
   kda:       { label: 'KDA',             f: d3.format('.2f'), d: '(Average kills + average assists) ÷ average deaths, with deaths counted as at least 1.' },
   kills:     { label: 'Kills',           f: d3.format('.1f'), d: 'Average kills per game.' },
@@ -1448,7 +1459,7 @@ window.DPS.setRange = (from, to) => dash.setParams({ from: from || '', to: to ||
 dash.calc('stats', {
   inputs: ['pm', 'players', 'scope'],
   title: 'Player stats for the selected dates and opponents',
-  description: 'One row per pro per position they reached the minimum games at (lowered to 3 when fewer than 25 players reach the chosen minimum: relaxed), inside the From/To dates and against the chosen opponent tiers. Main = their most-played qualifying position. WAA is measured against the average xWin of every game at the same position in these dates and opponents, by any player, regulars or not (waa_base); xwin_se is the standard error of xWin %. xwin and xlane are pulled toward the position average by k games of it (shrink_xwin / shrink_xlane in scope): (games x raw + k x average) / (games + k); the raw values are kept as xwin_raw and xlane_raw. WAA uses the raw values.',
+  description: 'One row per pro per position they reached the minimum games at (lowered to 3 when fewer than 25 players reach the chosen minimum: relaxed), inside the From/To dates and against the chosen opponent tiers. Main = their most-played qualifying position. WAA is measured against the average xWin of every game at the same position in these dates and opponents, by any player, regulars or not (waa_base); xwin_se is the standard error of xWin %. xwin and xlane are pulled toward the position average by k games of it (shrink_xwin / shrink_xlane in scope): (games x raw + k x average) / (games + k); the raw values are kept as xwin_raw and xlane_raw. WAA uses the raw values. war (test metric) is the sum of the per-game WAR credit in the pm file.',
   fn: (pm, players, scope) => {
     const prm = dash.params();
     const from = prm.from || '0000-00-00', to = prm.to || '9999-12-31', min = Number(prm.min) || 15, opp = Number(prm.opp) || 1;
@@ -1544,6 +1555,7 @@ dash.calc('stats', {
           })(),
           opp_elo: Math.round(avg(rs, 'opp_elo')),
           waa: 0, waa_base: 0, _xs: xs.reduce((s, v) => s + v, 0), _xn: xs.length,
+          war: (() => { const w = rs.filter((r) => num(r.war)); return w.length ? rd(w.reduce((s, r) => s + (+r.war), 0), 1) : null; })(),
           win_vs_x: rd(W / rs.length * 100 - xm * 100, 1)
         });
       });
@@ -1998,6 +2010,9 @@ dash.calc('teamagg', {
   dash.draw('n-multi', one('scope', 'heroes_multi', String));
   dash.draw('n-lane', one('scope', 'pos_lane_pct', String));
   dash.draw('m-team', one('scope', 'team_mid_auc', d3.format('.3f')));
+  dash.draw('m-warw', one('scope', 'war_weights', (v) => String(v || '—').split(',').join(' · ')));
+  dash.draw('m-warr', one('scope', 'war_repl', (v) => String(v || '—').split(',').map((x) => x + '%').join(' · ')));
+  dash.draw('m-wara', one('scope', 'war_avg', (v) => String(v || '—').split(',').map((x) => x + '%').join(' · ')));
   dash.draw('m-dauc', one('scope', 'draft_auc', d3.format('.3f')));
   dash.draw('m-dauc0', one('scope', 'draft_auc_strength', d3.format('.3f')));
   dash.draw('m-auc2', one('scope', 'xwin_auc', d3.format('.3f')));
@@ -2194,7 +2209,8 @@ dash.calc('teamagg', {
     const se = mk('small', 'dps-se', 'raw ' + d3.format('.1f')(p.xwin_raw) + ' · ± ' + d3.format('.1f')(p.xwin_se));
     se.title = 'Raw: the plain average over their ' + p.games + ' games. The big number pulls it toward the Pos ' + p.pos + ' average as if they had played ' + p.shrink_games + ' extra average games, so a short hot streak can\u2019t top the charts. ±: the likely range of their true xWin from this many games.';
     xk.querySelector('b').after(se);
-    k.append(xk, hl('WAA', 'waa', d3.format('+.1f')(p.waa)), kpi('Win %', 'winrate', d3.format('.1f')(p.winrate)),
+    const warK = kpi('WAR (test)', 'war', p.war == null ? '—' : d3.format('+.1f')(p.war)); warK.classList.add('dps-test');
+    k.append(xk, hl('WAA', 'waa', d3.format('+.1f')(p.waa)), warK, kpi('Win %', 'winrate', d3.format('.1f')(p.winrate)),
       kpi('Games', 'games', p.games), rec, kpi('KDA', 'kda', d3.format('.2f')(p.kda)));
     const gap = mk('div', 'dps-best');
     const g = p.win_vs_x;
@@ -2585,7 +2601,7 @@ dash.calc('teamagg', {
     const s = D.sort, cur = D.shown();
     let rows = S.data.filter((p) => (D.pos ? String(p.pos) === D.pos : p.main));
     rows = rows.slice().sort((a, b) => {
-      const x = a[s.k], y = b[s.k];
+      const x = a[s.k] == null ? -Infinity : a[s.k], y = b[s.k] == null ? -Infinity : b[s.k];
       return (typeof x === 'string' ? x.localeCompare(y) : x - y) * s.dir;
     });
     el.replaceChildren(...rows.map((p) => {
@@ -2595,7 +2611,7 @@ dash.calc('teamagg', {
       if (p.games < D.SMALL) { const t = mk('span', 'dps-ss', ' SS'); t.title = 'Small sample: under ' + D.SMALL + ' games'; nm.appendChild(t); }
       const tm = mk('td', 'l'); tm.append(p.team_id ? teamLink(p.team_id, p.team || D.teamName(p.team_id)) : (p.team || '—'));
       tr.append(nm, tm, mk('td', 'l', 'Pos ' + p.pos + ' · ' + p.role), mk('td', null, p.games),
-        mk('td', null, d3.format('.1f')(p.xwin)), mk('td', null, d3.format('+.1f')(p.waa)), mk('td', null, d3.format('.1f')(p.winrate)), mk('td', null, d3.format('.2f')(p.kda)), mk('td', null, p.gpm), mk('td', null, p.xpm),
+        mk('td', null, d3.format('.1f')(p.xwin)), mk('td', null, d3.format('+.1f')(p.waa)), mk('td', 'dps-testcell', p.war == null ? '—' : d3.format('+.1f')(p.war)), mk('td', null, d3.format('.1f')(p.winrate)), mk('td', null, d3.format('.2f')(p.kda)), mk('td', null, p.gpm), mk('td', null, p.xpm),
         mk('td', null, d3.format(',d')(p.dmg_min)), mk('td', null, d3.format('.1f')(p.wards)));
       return tr;
     }));
